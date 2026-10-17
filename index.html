@@ -104,7 +104,7 @@
           </div>
           <div>
             <h3 class="text-sm font-bold text-white">Akademik AI Danışmanı</h3>
-            <p id="active-model-label" class="text-[11px] text-purple-400 font-mono">Model: Gemini 3.8 Flash</p>
+            <p id="active-model-label" class="text-[11px] text-purple-400 font-mono">Model: Gemini 3.8 Flash (Sümen Verileri Entegre)</p>
           </div>
         </div>
         <button onclick="toggleChatModal()" class="text-slate-400 hover:text-white p-2">
@@ -114,7 +114,7 @@
 
       <div id="chat-messages" class="flex-1 p-4 overflow-y-auto chat-scroll flex flex-col gap-3 text-sm">
         <div class="bg-slate-700/50 border border-slate-700 self-start p-3 rounded-xl max-w-[85%] text-slate-200">
-          Merhaba! Sorunu doğrudan buraya yazabilirsin (örneğin tezin metodolojisi, makale giriş paragrafı veya literatür planı).
+          Merhaba! Sümenindeki tüm matris kayıtlarını, çalışma sürelerini ve bekleyen işlerini doğrudan görebiliyorum. Bana dilediğin soruyu sorabilir veya çalışma durumun hakkında analiz isteyebilirsin.
         </div>
       </div>
 
@@ -508,7 +508,7 @@
       });
     }
 
-    // --- DOĞRUDAN AI SOHBET (DOĞRUDAN GEMINI 3.8 FLASH DESTEĞİ) ---
+    // --- SÜMEN VERİLERİNİ OKUYAN AI SOHBET MOTORU ---
     function toggleChatModal() {
       const m = document.getElementById('ai-chat-modal');
       m.classList.toggle('hidden');
@@ -539,7 +539,6 @@
 
       const chatContainer = document.getElementById('chat-messages');
 
-      // Kullanıcı mesajı
       chatContainer.innerHTML += `
         <div class="bg-purple-600/30 border border-purple-500/30 text-purple-100 self-end p-3 rounded-xl max-w-[85%] whitespace-pre-wrap">
           ${text}
@@ -548,25 +547,32 @@
       input.value = '';
       chatContainer.scrollTop = chatContainer.scrollHeight;
 
-      // Bekleme balonu
       const loadingId = 'loading-' + Date.now();
       chatContainer.innerHTML += `
         <div id="${loadingId}" class="bg-slate-700/50 border border-slate-700 self-start p-3 rounded-xl max-w-[85%] flex items-center gap-2 text-slate-300">
-          <i class="fas fa-circle-notch fa-spin text-purple-400"></i> Yanıt hazırlanıyor...
+          <i class="fas fa-circle-notch fa-spin text-purple-400"></i> Verilerin taranıyor ve yanıt hazırlanıyor...
         </div>
       `;
       chatContainer.scrollTop = chatContainer.scrollHeight;
 
-      const systemPrompt = "Sen kıdemli, yol gösterici ve çözüm odaklı bir akademik danışmansın. Araştırmacının tez, makale, revizyon, literatür ve akademik planlama sorularına doğrudan uygulanabilir ve net yanıtlar ver.";
+      // Kullanıcının matristeki tüm verilerini özetleyip yapay zekaya bağlam olarak veriyoruz
+      const sumenVerileri = {
+        alanlar: state.habits.map(h => h.title),
+        kayitlar: state.logs,
+        yapilacak_isler: state.tasks.filter(t => !t.done).map(t => `${t.category === 'is' ? 'Sprint' : 'Ev'}: ${t.text}`)
+      };
+
+      const systemPrompt = `Sen kıdemli bir akademik danışmansın. 
+Karşındaki araştırmacının Dijital Akademik Sümen'indeki canlı verileri aşağıdadır:
+${JSON.stringify(sumenVerileri)}
+
+GÖREVİN:
+- Araştırmacı "verilerimi analiz et", "ne çalışmışım?", "durumum nasıl?" gibi sorular sorduğunda doğrudan yukarıdaki kayıtlara (hangi tarihlerde kaç dakika çalıştığına, hangi alt başlıklara odaklandığına, bekleyen sprint görevlerine) bakarak somut ve net analiz yap.
+- Eğer araştırmacı başka bir akademik konu (metodoloji, makale yazımı, hakem revizyonu vb.) sorarsa hem genel danışmanlık yap hem de sümenindeki durumla ilişkilendir.
+- Samimi, net, motive edici ve Türkçe konuş.`;
 
       let replyText = null;
-
-      // Doğrudan Google'ın talep ettiği gemini-3.8-flash modeli ve yedekleri
-      const modelsToTry = [
-        'gemini-3.8-flash',
-        'gemini-3-flash',
-        'gemini-2.0-flash'
-      ];
+      const modelsToTry = ['gemini-3.8-flash', 'gemini-3-flash', 'gemini-2.0-flash'];
 
       for (const m of modelsToTry) {
         try {
@@ -575,7 +581,7 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               contents: [
-                { role: 'user', parts: [{ text: `${systemPrompt}\n\nSoru: ${text}` }] }
+                { role: 'user', parts: [{ text: `${systemPrompt}\n\nKullanıcı Sorusu: ${text}` }] }
               ]
             })
           });
@@ -583,8 +589,6 @@
           const data = await res.json();
           if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
             replyText = data.candidates[0].content.parts[0].text;
-            const label = document.getElementById('active-model-label');
-            if (label) label.innerText = `Model: ${m}`;
             break;
           } else if (data.error && !replyText) {
             replyText = `API Hatası: ${data.error.message}`;
