@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Akademik Sümen & AI Asistan</title>
+  <title>Akademik Sümen & AI Danışman</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -93,11 +93,10 @@
     <div id="subtopics-summary" class="grid grid-cols-1 md:grid-cols-4 gap-4"></div>
   </section>
 
-  <!-- MODAL: DOĞRUDAN AI SOHBET PENCERESİ -->
+  <!-- MODAL: AI SOHBET PENCERESİ -->
   <div id="ai-chat-modal" class="fixed inset-0 bg-black/75 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
     <div class="bg-slate-800 border border-purple-500/50 rounded-2xl w-full max-w-2xl flex flex-col h-[75vh] shadow-2xl overflow-hidden">
       
-      <!-- Sohbet Başlığı -->
       <div class="flex justify-between items-center bg-slate-900/60 p-4 border-b border-slate-700">
         <div class="flex items-center gap-2">
           <div class="w-8 h-8 rounded-full bg-purple-600/30 flex items-center justify-center text-purple-400">
@@ -105,7 +104,7 @@
           </div>
           <div>
             <h3 class="text-sm font-bold text-white">Akademik AI Danışmanı</h3>
-            <p class="text-[11px] text-slate-400">Tez, makale, revizyon ve yöntem danışmanı</p>
+            <p id="active-model-label" class="text-[11px] text-slate-400">Model: Otomatik Tespit Ediliyor...</p>
           </div>
         </div>
         <button onclick="toggleChatModal()" class="text-slate-400 hover:text-white p-2">
@@ -113,16 +112,14 @@
         </button>
       </div>
 
-      <!-- Sohbet Akışı -->
       <div id="chat-messages" class="flex-1 p-4 overflow-y-auto chat-scroll flex flex-col gap-3 text-sm">
         <div class="bg-slate-700/50 border border-slate-700 self-start p-3 rounded-xl max-w-[85%] text-slate-200">
-          Merhaba! Ben akademik çalışma asistanınım. Tezin, makalenin kurgusu, literatür taraması ya da karşılaştığın bir sorun hakkında bana dilediğini sorabilirsin.
+          Merhaba! Sorunu doğrudan buraya yazabilirsin (örneğin tezin metodolojisi, makale giriş paragrafı veya literatür planı).
         </div>
       </div>
 
-      <!-- Soru Sorma Girişi -->
       <div class="p-3 bg-slate-900/80 border-t border-slate-700 flex gap-2">
-        <textarea id="chat-input" rows="2" placeholder="Sorunu buraya yaz (Göndermek için Enter'a bas)..." 
+        <textarea id="chat-input" rows="2" placeholder="Sorunu yazıp Enter'a bas..." 
                   class="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500 resize-none"
                   onkeydown="handleChatKeyDown(event)"></textarea>
         <button onclick="sendChatMessage()" class="px-4 bg-purple-600 hover:bg-purple-500 rounded-xl text-white font-semibold flex items-center justify-center transition">
@@ -511,7 +508,7 @@
       });
     }
 
-    // --- DOĞRUDAN AI SOHBET VE SORU-CEVAP MOTORU ---
+    // --- DOĞRUDAN AI SOHBET VE DİNAMİK MODEL BULUCU ---
     function toggleChatModal() {
       const m = document.getElementById('ai-chat-modal');
       m.classList.toggle('hidden');
@@ -542,7 +539,7 @@
 
       const chatContainer = document.getElementById('chat-messages');
 
-      // Kullanıcı mesajını ekle
+      // 1. Kullanıcı mesajını ekle
       chatContainer.innerHTML += `
         <div class="bg-purple-600/30 border border-purple-500/30 text-purple-100 self-end p-3 rounded-xl max-w-[85%] whitespace-pre-wrap">
           ${text}
@@ -551,7 +548,7 @@
       input.value = '';
       chatContainer.scrollTop = chatContainer.scrollHeight;
 
-      // Bekleme mesajı
+      // 2. Yükleniyor balonu
       const loadingId = 'loading-' + Date.now();
       chatContainer.innerHTML += `
         <div id="${loadingId}" class="bg-slate-700/50 border border-slate-700 self-start p-3 rounded-xl max-w-[85%] flex items-center gap-2 text-slate-300">
@@ -560,49 +557,62 @@
       `;
       chatContainer.scrollTop = chatContainer.scrollHeight;
 
-      const systemPrompt = "Sen kıdemli, yol gösterici ve çözüm odaklı bir akademik danışmansın. Araştırmacının tez, makale, hakem yanıtları, literatür ve akademik planlama sorularına açık, net, yapıcı ve doğrudan uygulanabilir önerilerle Türkçe yanıt ver.";
+      const systemPrompt = "Sen kıdemli, yol gösterici ve çözüm odaklı bir akademik danışmansın. Araştırmacının tez, makale, revizyon, literatür ve akademik planlama sorularına doğrudan uygulanabilir ve net yanıtlar ver.";
 
-      // Google AI Studio'daki modeller
-      const models = ['gemini-3.8-flash', 'gemini-2.5-flash', 'gemini-2.0-flash'];
       let replyText = null;
+      let usedModel = "";
 
-      for (const m of models) {
-        try {
-          const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${geminiKey}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [
-                { role: 'user', parts: [{ text: `${systemPrompt}\n\nKullanıcının Sorusu: ${text}` }] }
-              ]
-            })
-          });
-          const data = await res.json();
-          if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
-            replyText = data.candidates[0].content.parts[0].text;
-            break;
+      try {
+        // Hesabın desteklediği modelleri doğrudan Google'dan çekiyoruz
+        const modelsRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${geminiKey}`);
+        const modelsData = await modelsRes.json();
+
+        let targetModel = null;
+        if (modelsData.models && modelsData.models.length > 0) {
+          const valid = modelsData.models.filter(m => m.supportedGenerationMethods && m.supportedGenerationMethods.includes('generateContent'));
+          const chosen = valid.find(m => m.name.includes('flash')) || valid[0];
+          if (chosen) {
+            targetModel = chosen.name; // Zaten 'models/...' formatındadır
           }
-        } catch (e) {
-          // Bir sonraki modeli dener
         }
+
+        if (!targetModel) {
+          targetModel = 'models/gemini-2.0-flash';
+        }
+
+        usedModel = targetModel.replace('models/', '');
+        const label = document.getElementById('active-model-label');
+        if (label) label.innerText = `Model: ${usedModel}`;
+
+        // Sorguyu gönderiyoruz
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/${targetModel}:generateContent?key=${geminiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [
+              { role: 'user', parts: [{ text: `${systemPrompt}\n\nSoru: ${text}` }] }
+            ]
+          })
+        });
+
+        const data = await res.json();
+        if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
+          replyText = data.candidates[0].content.parts[0].text;
+        } else if (data.error) {
+          replyText = `API Hatası: ${data.error.message}`;
+        }
+      } catch (err) {
+        replyText = `Bağlantı Hatası: ${err.message}`;
       }
 
       const loaderEl = document.getElementById(loadingId);
       if (loaderEl) loaderEl.remove();
 
-      if (replyText) {
-        chatContainer.innerHTML += `
-          <div class="bg-slate-700/50 border border-slate-700 self-start p-3 rounded-xl max-w-[85%] text-slate-200 whitespace-pre-wrap leading-relaxed">
-            ${replyText}
-          </div>
-        `;
-      } else {
-        chatContainer.innerHTML += `
-          <div class="bg-rose-900/30 border border-rose-700/50 self-start p-3 rounded-xl max-w-[85%] text-rose-300 text-xs">
-            Yanıt alınamadı. Lütfen API anahtarınızın geçerliliğini ve internet bağlantınızı kontrol edin.
-          </div>
-        `;
-      }
+      chatContainer.innerHTML += `
+        <div class="bg-slate-700/50 border border-slate-700 self-start p-3 rounded-xl max-w-[85%] text-slate-200 whitespace-pre-wrap leading-relaxed">
+          ${replyText || "Cevap üretilemedi."}
+        </div>
+      `;
       chatContainer.scrollTop = chatContainer.scrollHeight;
     }
 
