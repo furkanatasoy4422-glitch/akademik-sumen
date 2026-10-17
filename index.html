@@ -58,7 +58,7 @@
       </section>
     </div>
 
-    <div class="lg:col-span-8 flex flex-col gap-4">
+    <div class="lg:col-span-8 flex flex-col gap-4 min-h-0">
       <section class="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div class="bg-white border border-[#e5e2da] rounded-2xl p-3.5 shadow-[0_2px_8px_rgba(0,0,0,0.03)]">
           <span class="text-[11px] font-semibold text-slate-400 uppercase">Toplam Odak</span>
@@ -78,13 +78,13 @@
         </div>
       </section>
 
-      <section class="bg-white border border-[#e5e2da] rounded-2xl p-5 shadow-[0_2px_8px_rgba(0,0,0,0.03)] flex flex-col gap-4">
-        <div class="flex items-center justify-between">
+      <section class="bg-white border border-[#e5e2da] rounded-2xl p-5 shadow-[0_2px_8px_rgba(0,0,0,0.03)] flex flex-col gap-4 flex-1">
+        <div class="flex items-center justify-between gap-3">
           <div>
             <h2 class="text-sm font-bold text-slate-800">30 Günlük Zincir & Isı Haritası</h2>
             <p class="text-xs text-slate-400">Çalışma süresine göre renk tonu yoğunlaşır</p>
           </div>
-          <div class="flex items-center gap-1.5 text-[11px] text-slate-400">
+          <div class="flex items-center gap-1.5 text-[11px] text-slate-400 shrink-0">
             <span>Az</span>
             <div class="w-2.5 h-2.5 rounded bg-blue-100"></div>
             <div class="w-2.5 h-2.5 rounded bg-blue-300"></div>
@@ -94,7 +94,7 @@
           </div>
         </div>
 
-        <div id="calendar-grid" class="grid grid-cols-5 md:grid-cols-6 gap-2.5"></div>
+        <div id="calendar-grid" class="grid grid-cols-5 md:grid-cols-6 gap-2 flex-1"></div>
       </section>
     </div>
   </main>
@@ -344,30 +344,44 @@
         var d = days[idx];
         var key = state.activeHabitId + '_' + d;
         var rec = state.logs[key];
-        var dayNum = idx + 1;
+        var dayNum = new Date(d + 'T12:00:00').getDate();
+        var hasLog = rec && rec.minutes > 0;
 
         var bgClass = "bg-[#fbfaf8] hover:bg-slate-100 border-[#e5e2da]";
-        var textClass = "text-slate-400";
+        var textClass = "text-slate-500";
+        var dotClass = "bg-slate-300";
         var badgeHtml = '<span class="text-[10px] text-slate-300 font-medium">+ Ekle</span>';
 
-        if (rec && rec.minutes > 0) {
+        if (hasLog) {
           var m = rec.minutes;
-          if (m <= 30) bgClass = "bg-blue-100 border-blue-200 text-blue-900";
-          else if (m <= 60) bgClass = "bg-blue-300 border-blue-400 text-blue-950";
-          else if (m <= 90) bgClass = "bg-blue-500 border-blue-600 text-white";
-          else bgClass = "bg-blue-700 border-blue-800 text-white";
+          if (m <= 30) {
+            bgClass = "bg-blue-100 border-blue-200 text-blue-900";
+            textClass = "text-blue-900/80";
+            dotClass = "bg-blue-500";
+          } else if (m <= 60) {
+            bgClass = "bg-blue-300 border-blue-400 text-blue-950";
+            textClass = "text-blue-950/80";
+            dotClass = "bg-blue-700";
+          } else if (m <= 90) {
+            bgClass = "bg-blue-500 border-blue-600 text-white";
+            textClass = "text-white/90";
+            dotClass = "bg-white";
+          } else {
+            bgClass = "bg-blue-700 border-blue-800 text-white";
+            textClass = "text-white/90";
+            dotClass = "bg-white";
+          }
 
           var sub = rec.subtopic ? '<p class="text-[10px] truncate max-w-full opacity-90">' + rec.subtopic + '</p>' : '';
           badgeHtml = '<span class="text-[11px] font-bold px-1.5 py-0.5 rounded bg-black/15">' + m + ' dk</span>' + sub;
-          textClass = (m > 60) ? "text-white/80" : "text-blue-900/80";
         }
 
-        html += '<div onclick="openLogModal(\'' + state.activeHabitId + '\', \'' + d + '\')" class="border rounded-xl p-2.5 h-20 flex flex-col justify-between cursor-pointer transition transform hover:scale-[1.02] shadow-[0_1px_3px_rgba(0,0,0,0.02)] ' + bgClass + '">';
-        html += '  <div class="flex justify-between items-center text-xs font-bold ' + textClass + '">';
-        html += '    <span>' + dayNum + '</span>';
-        html += '    <span class="text-[9px] font-mono opacity-60">' + d.slice(5) + '</span>';
+        html += '<div onclick="openLogModal(\'' + state.activeHabitId + '\', \'' + d + '\')" class="border rounded-xl p-2.5 min-h-[5.25rem] h-full flex flex-col justify-between cursor-pointer transition hover:shadow-sm ' + bgClass + '">';
+        html += '  <div class="flex items-center gap-1.5 text-xs font-bold ' + textClass + '">';
+        html += '    <span class="leading-none">' + dayNum + '</span>';
+        html += '    <span class="w-1.5 h-1.5 rounded-full shrink-0 ' + dotClass + '" aria-hidden="true"></span>';
         html += '  </div>';
-        html += '  <div class="flex flex-col gap-0.5 items-start w-full">' + badgeHtml + '</div>';
+        html += '  <div class="flex flex-col gap-0.5 items-start w-full min-h-[1.5rem]">' + badgeHtml + '</div>';
         html += '</div>';
       }
 
