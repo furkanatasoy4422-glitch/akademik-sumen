@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Akademik Sümen & AI Danışman</title>
+  <title>FocoDesk | Akademik Çalışma & AI Masası</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -22,9 +22,9 @@
   <header class="flex flex-wrap items-center justify-between gap-4 bg-slate-800/80 p-4 rounded-xl border border-slate-700 backdrop-blur">
     <div>
       <h1 class="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
-        <span>🖥️</span> Akademik Çalışma Sümeni
+        <span>⚡</span> FocoDesk
       </h1>
-      <p class="text-sm text-slate-400">Son 30 Günlük Zincir, Isı Haritası & Doğrudan AI Soru-Cevap</p>
+      <p class="text-sm text-slate-400">Akademik Çalışma Sümeni, Isı Haritası & Yapay Zekâ Danışmanı</p>
     </div>
     <div class="flex items-center gap-3">
       <button onclick="toggleChatModal()" class="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 rounded-lg text-sm font-semibold transition flex items-center gap-2 shadow-lg shadow-indigo-500/20">
@@ -33,7 +33,7 @@
       <button id="auth-btn" onclick="handleAuthClick()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-sm font-semibold transition flex items-center gap-2">
         <i class="fab fa-google"></i> Google ile Bağlan
       </button>
-      <button onclick="toggleConfigModal()" class="p-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-slate-300">
+      <button onclick="toggleConfigModal()" title="AI Ayarları" class="p-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-slate-300 transition">
         <i class="fas fa-gear"></i>
       </button>
     </div>
@@ -103,8 +103,8 @@
             <i class="fas fa-robot text-sm"></i>
           </div>
           <div>
-            <h3 class="text-sm font-bold text-white">Akademik AI Danışmanı</h3>
-            <p id="active-model-label" class="text-[11px] text-purple-400 font-mono">Model: Gemini 3.8 Flash (Sümen Verileri Entegre)</p>
+            <h3 class="text-sm font-bold text-white">FocoDesk AI Danışmanı</h3>
+            <p id="active-model-label" class="text-[11px] text-purple-400 font-mono">Model: Gemini Flash (Masa Verileri Entegre)</p>
           </div>
         </div>
         <button onclick="toggleChatModal()" class="text-slate-400 hover:text-white p-2">
@@ -114,7 +114,7 @@
 
       <div id="chat-messages" class="flex-1 p-4 overflow-y-auto chat-scroll flex flex-col gap-3 text-sm">
         <div class="bg-slate-700/50 border border-slate-700 self-start p-3 rounded-xl max-w-[85%] text-slate-200">
-          Merhaba! Sümenindeki tüm matris kayıtlarını, çalışma sürelerini ve bekleyen işlerini doğrudan görebiliyorum. Bana dilediğin soruyu sorabilir veya çalışma durumun hakkında analiz isteyebilirsin.
+          Merhaba! FocoDesk masandaki tüm çalışma sürelerini, alt başlıkları ve bekleyen işlerini doğrudan görebiliyorum. Bana çalışma durumun hakkında analiz sorabilir veya akademik süreçlerinle ilgili danışabilirsin.
         </div>
       </div>
 
@@ -169,31 +169,32 @@
     </div>
   </div>
 
-  <!-- MODAL: AYARLAR -->
+  <!-- MODAL: AYARLAR (SADECE GEMINI API) -->
   <div id="config-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
     <div class="bg-slate-800 border border-slate-700 rounded-xl p-6 w-full max-w-md flex flex-col gap-4 shadow-2xl">
-      <h3 class="text-lg font-bold">Bağlantı & AI Ayarları</h3>
+      <h3 class="text-lg font-bold flex items-center gap-2">
+        <i class="fas fa-brain text-purple-400"></i> AI Danışman Ayarları
+      </h3>
+      <p class="text-xs text-slate-400">
+        Yapay zekâ asistanını aktif olarak kullanmak için kişisel Gemini API anahtarınızı tanımlayabilirsiniz.
+      </p>
       <div>
-        <label class="text-xs text-slate-400">Supabase Project URL</label>
-        <input id="cfg-url" type="text" placeholder="https://xxxx.supabase.co" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-sm mt-1">
+        <label class="text-xs text-purple-400 font-semibold">Gemini API Key</label>
+        <input id="cfg-gemini" type="password" placeholder="AIzaSy..." class="w-full bg-slate-900 border border-purple-500/50 rounded-lg p-2 text-sm mt-1 focus:outline-none focus:border-purple-400">
+        <span class="text-[11px] text-slate-400 mt-1 block">Ücretsiz anahtar almak için: <a href="https://aistudio.google.com" target="_blank" class="text-indigo-400 underline">aistudio.google.com</a></span>
       </div>
-      <div>
-        <label class="text-xs text-slate-400">Supabase Publishable Key</label>
-        <input id="cfg-key" type="password" placeholder="sb_publishable_..." class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-sm mt-1">
-      </div>
-      <div>
-        <label class="text-xs text-purple-400 font-semibold">Gemini API Key (Google AI Studio)</label>
-        <input id="cfg-gemini" type="password" placeholder="AIzaSy..." class="w-full bg-slate-900 border border-purple-500/50 rounded-lg p-2 text-sm mt-1">
-        <span class="text-[11px] text-slate-400 mt-1 block">aistudio.google.com adresinden alınabilir.</span>
-      </div>
-      <div class="flex justify-end gap-2">
-        <button onclick="toggleConfigModal()" class="px-4 py-2 bg-slate-700 rounded-lg text-sm">Kapat</button>
-        <button onclick="saveConfigurations()" class="px-4 py-2 bg-indigo-600 rounded-lg text-sm font-semibold">Kaydet</button>
+      <div class="flex justify-end gap-2 mt-2">
+        <button onclick="toggleConfigModal()" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm">Kapat</button>
+        <button onclick="saveConfigurations()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-sm font-semibold">Kaydet</button>
       </div>
     </div>
   </div>
 
   <script>
+    // Supabase Entegrasyonu - Sabit Değerler
+    const SUPABASE_URL = "https://mssjazycznwxnqhxrbuv.supabase.co";
+    const SUPABASE_ANON_KEY = "sb_publishable_iO5wNMRbtTnq7LttphegXA_zXB6rgaP";
+
     let state = {
       habits: [
         { id: "tez", title: "Tez Yazımı & Araştırma", color: "#ef4444" },
@@ -232,10 +233,8 @@
     }
 
     function initSupabase() {
-      const url = localStorage.getItem('sb_url');
-      const key = localStorage.getItem('sb_key');
-      if (url && key && window.supabase) {
-        state.supabaseClient = window.supabase.createClient(url, key);
+      if (window.supabase) {
+        state.supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         checkUserSession();
       }
     }
@@ -252,10 +251,7 @@
     }
 
     async function handleAuthClick() {
-      if (!state.supabaseClient) {
-        toggleConfigModal();
-        return;
-      }
+      if (!state.supabaseClient) return;
       await state.supabaseClient.auth.signInWithOAuth({
         provider: 'google',
         options: { redirectTo: window.location.origin }
@@ -508,7 +504,7 @@
       });
     }
 
-    // --- SÜMEN VERİLERİNİ OKUYAN AI SOHBET MOTORU ---
+    // --- FOCODESK VERİLERİNİ OKUYAN AI SOHBET MOTORU ---
     function toggleChatModal() {
       const m = document.getElementById('ai-chat-modal');
       m.classList.toggle('hidden');
@@ -550,29 +546,28 @@
       const loadingId = 'loading-' + Date.now();
       chatContainer.innerHTML += `
         <div id="${loadingId}" class="bg-slate-700/50 border border-slate-700 self-start p-3 rounded-xl max-w-[85%] flex items-center gap-2 text-slate-300">
-          <i class="fas fa-circle-notch fa-spin text-purple-400"></i> Verilerin taranıyor ve yanıt hazırlanıyor...
+          <i class="fas fa-circle-notch fa-spin text-purple-400"></i> FocoDesk verileriniz inceleniyor ve yanıt oluşturuluyor...
         </div>
       `;
       chatContainer.scrollTop = chatContainer.scrollHeight;
 
-      // Kullanıcının matristeki tüm verilerini özetleyip yapay zekaya bağlam olarak veriyoruz
-      const sumenVerileri = {
+      const focoVerileri = {
         alanlar: state.habits.map(h => h.title),
         kayitlar: state.logs,
         yapilacak_isler: state.tasks.filter(t => !t.done).map(t => `${t.category === 'is' ? 'Sprint' : 'Ev'}: ${t.text}`)
       };
 
-      const systemPrompt = `Sen kıdemli bir akademik danışmansın. 
-Karşındaki araştırmacının Dijital Akademik Sümen'indeki canlı verileri aşağıdadır:
-${JSON.stringify(sumenVerileri)}
+      const systemPrompt = `Sen FocoDesk akıllı akademik danışmanısın. 
+Karşındaki araştırmacının FocoDesk çalışma masasındaki güncel verileri şöyledir:
+${JSON.stringify(focoVerileri)}
 
 GÖREVİN:
-- Araştırmacı "verilerimi analiz et", "ne çalışmışım?", "durumum nasıl?" gibi sorular sorduğunda doğrudan yukarıdaki kayıtlara (hangi tarihlerde kaç dakika çalıştığına, hangi alt başlıklara odaklandığına, bekleyen sprint görevlerine) bakarak somut ve net analiz yap.
-- Eğer araştırmacı başka bir akademik konu (metodoloji, makale yazımı, hakem revizyonu vb.) sorarsa hem genel danışmanlık yap hem de sümenindeki durumla ilişkilendir.
-- Samimi, net, motive edici ve Türkçe konuş.`;
+- Araştırmacı analiz istediğinde doğrudan yukarıdaki sürelere, odaklandığı alt başlıklara ve sprint görevlerine bakarak somut tavsiyeler ver.
+- Akademik konularda (yayın, tez, revizyon, veri analizi vb.) hem stratejik destek sun hem de mevcut çalışma temposuyla ilişkilendir.
+- Samimi, çözüm odaklı ve motive edici bir dille Türkçe yanıt ver.`;
 
       let replyText = null;
-      const modelsToTry = ['gemini-3.8-flash', 'gemini-3-flash', 'gemini-2.0-flash'];
+      const modelsToTry = ['gemini-2.5-flash', 'gemini-1.5-flash'];
 
       for (const m of modelsToTry) {
         try {
@@ -613,22 +608,16 @@ GÖREVİN:
       const m = document.getElementById('config-modal');
       m.classList.toggle('hidden');
       m.classList.toggle('flex');
-      document.getElementById('cfg-url').value = localStorage.getItem('sb_url') || '';
-      document.getElementById('cfg-key').value = localStorage.getItem('sb_key') || '';
       document.getElementById('cfg-gemini').value = localStorage.getItem('gemini_api_key') || '';
     }
 
     function saveConfigurations() {
-      const u = document.getElementById('cfg-url').value.trim();
-      const k = document.getElementById('cfg-key').value.trim();
       const g = document.getElementById('cfg-gemini').value.trim();
-
-      if (u) localStorage.setItem('sb_url', u);
-      if (k) localStorage.setItem('sb_key', k);
-      if (g) localStorage.setItem('gemini_api_key', g);
-
-      alert("Ayarlar kaydedildi!");
-      location.reload();
+      if (g) {
+        localStorage.setItem('gemini_api_key', g);
+        alert("Gemini API Anahtarı başarıyla kaydedildi!");
+      }
+      toggleConfigModal();
     }
   </script>
 </body>
