@@ -1,195 +1,340 @@
-<!DOCTYPE html>
-<html lang="tr">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>FocoDesk | Akademik Çalışma & AI Masası</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <style>
-    body { background-color: #0f172a; color: #f8fafc; font-family: system-ui, -apple-system, sans-serif; }
-    .matrix-scroll::-webkit-scrollbar { height: 8px; }
-    .matrix-scroll::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
-    .matrix-scroll::-webkit-scrollbar-track { background: #1e293b; }
-    .chat-scroll::-webkit-scrollbar { width: 6px; }
-    .chat-scroll::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
-  </style>
-</head>
-<body class="min-h-screen p-4 md:p-8 flex flex-col gap-6">
+const SUPABASE_URL = "https://mssjazycznwxnqhxrbuv.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_iO5wNMRbtTnq7LttphegXA_zXB6rgaP";
 
-  <!-- ÜST MENÜ & PROFİL -->
-  <header class="flex flex-wrap items-center justify-between gap-4 bg-slate-800/80 p-4 rounded-xl border border-slate-700 backdrop-blur">
-    <div>
-      <h1 class="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
-        <span>⚡</span> FocoDesk
-      </h1>
-      <p class="text-sm text-slate-400">Akademik Çalışma Sümeni, Isı Haritası & Yapay Zekâ Danışmanı</p>
-    </div>
-    <div class="flex items-center gap-3">
-      <button onclick="toggleChatModal()" class="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 rounded-lg text-sm font-semibold transition flex items-center gap-2 shadow-lg shadow-indigo-500/20">
-        <i class="fas fa-comments"></i> AI'ya Soru Sor
-      </button>
-      <button id="auth-btn" onclick="handleAuthClick()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-sm font-semibold transition flex items-center gap-2">
-        <i class="fab fa-google"></i> Google ile Bağlan
-      </button>
-      <button onclick="toggleConfigModal()" title="AI Ayarları" class="p-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-slate-300 transition">
-        <i class="fas fa-gear"></i>
-      </button>
-    </div>
-  </header>
+let state = {
+  habits: [
+    { id: "tez", title: "Doktora Tezi" },
+    { id: "makale", title: "Dergi & Makale" },
+    { id: "akreditasyon", title: "Akreditasyon Dosyaları" },
+    { id: "okuma", title: "Literatür & Okuma" }
+  ],
+  activeHabitId: "tez",
+  logs: {},
+  tasks: [],
+  selectedHabit: null,
+  selectedDate: null,
+  supabaseClient: null
+};
 
-  <!-- ÖZET METRİK KARTLARI -->
-  <section id="metrics-bar" class="grid grid-cols-2 md:grid-cols-4 gap-4"></section>
+function getLast30Days() {
+  const dates = [];
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    dates.push(d.toISOString().split('T')[0]);
+  }
+  return dates;
+}
 
-  <!-- ANA ÇALIŞMA ALANI -->
-  <main class="grid grid-cols-1 lg:grid-cols-4 gap-6">
-    <!-- SOL: 30 GÜNLÜK HEATMAP -->
-    <div class="lg:col-span-3 bg-slate-800/60 p-5 rounded-xl border border-slate-700 flex flex-col gap-4">
-      <div class="flex items-center justify-between">
-        <h2 class="text-lg font-semibold flex items-center gap-2">
-          <i class="fas fa-layer-group text-indigo-400"></i> Stratejik Çalışma Matrisi
-        </h2>
-        <span class="text-xs text-slate-400">Hücreye tıkla: süre ve alt başlık gir</span>
-      </div>
+window.onload = () => {
+  displayCurrentDate();
+  populateHabitSelect();
+  loadLocalState();
+  initSupabase();
+  renderAll();
+};
 
-      <div class="matrix-scroll overflow-x-auto pb-4">
-        <div id="matrix-header" class="flex gap-2 min-w-max mb-2 pl-36"></div>
-        <div id="matrix-rows" class="flex flex-col gap-3 min-w-max"></div>
-      </div>
-    </div>
+function displayCurrentDate() {
+  const d = new Date();
+  const options = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
+  document.getElementById('current-date-label').innerText = d.toLocaleDateString('tr-TR', options);
+}
 
-    <!-- SAĞ: SPRINTLER & EV İŞLERİ -->
-    <div class="flex flex-col gap-6">
-      <div class="bg-slate-800/60 p-5 rounded-xl border border-slate-700 flex flex-col gap-3">
-        <h3 class="font-semibold text-sm uppercase tracking-wider text-amber-400 flex items-center gap-2">
-          <i class="fas fa-bolt"></i> Kısa Vadeli İşler (2-4 Gün)
-        </h3>
-        <div class="flex gap-2">
-          <input id="input-task" type="text" placeholder="Örn: Hakem yanıtı..." class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-amber-400">
-          <button onclick="addTask('is')" class="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 rounded-lg text-sm font-semibold">+</button>
+function populateHabitSelect() {
+  const sel = document.getElementById('habit-select');
+  sel.innerHTML = state.habits.map(h => `<option value="${h.id}">${h.title}</option>`).join('');
+  sel.value = state.activeHabitId;
+}
+
+function changeHabit(val) {
+  state.activeHabitId = val;
+  renderAll();
+}
+
+function loadLocalState() {
+  const savedLogs = localStorage.getItem('sumen_logs');
+  if (savedLogs) state.logs = JSON.parse(savedLogs);
+  const savedTasks = localStorage.getItem('sumen_tasks');
+  if (savedTasks) state.tasks = JSON.parse(savedTasks);
+}
+
+function initSupabase() {
+  if (window.supabase) {
+    state.supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    checkUserSession();
+  }
+}
+
+async function checkUserSession() {
+  if (!state.supabaseClient) return;
+  const { data: { session } } = await state.supabaseClient.auth.getSession();
+  const authBtn = document.getElementById('auth-btn');
+  if (session) {
+    authBtn.innerHTML = `<i class="fas fa-user-check text-emerald-600"></i> ${session.user.email.split('@')[0]}`;
+    authBtn.classList.replace('bg-slate-100', 'bg-emerald-50');
+    pullCloudData();
+  }
+}
+
+async function handleAuthClick() {
+  if (!state.supabaseClient) return;
+  await state.supabaseClient.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo: window.location.origin }
+  });
+}
+
+async function pullCloudData() {
+  if (!state.supabaseClient) return;
+  const { data: logs } = await state.supabaseClient.from('habit_logs').select('*');
+  if (logs) {
+    logs.forEach(l => {
+      state.logs[`${l.habit_id}_${l.log_date}`] = {
+        minutes: l.duration_minutes,
+        subtopic: l.subtopic,
+        notes: l.notes
+      };
+    });
+  }
+  const { data: tasks } = await state.supabaseClient.from('tasks').select('*');
+  if (tasks) {
+    state.tasks = tasks.map(t => ({ id: t.id, text: t.title, done: t.is_completed }));
+  }
+  renderAll();
+}
+
+function renderAll() {
+  renderMetrics();
+  renderCalendar();
+  renderTasks();
+  renderHabitHistory();
+}
+
+function renderMetrics() {
+  let totalMins = 0;
+  let activeDays = 0;
+  const days = getLast30Days();
+
+  days.forEach(d => {
+    const key = `${state.activeHabitId}_${d}`;
+    if (state.logs[key] && state.logs[key].minutes > 0) {
+      totalMins += state.logs[key].minutes;
+      activeDays++;
+    }
+  });
+
+  const hours = Math.floor(totalMins / 60);
+  const mins = totalMins % 60;
+  document.getElementById('metric-total-time').innerText = `${hours} sa ${mins} dk`;
+  document.getElementById('metric-streak').innerText = `${activeDays} Gün`;
+
+  const doneTasks = state.tasks.filter(t => t.done).length;
+  document.getElementById('metric-completed-tasks').innerText = `${doneTasks} Adet`;
+
+  const rhythm = Math.round((activeDays / 30) * 100);
+  document.getElementById('metric-rhythm').innerText = `%${rhythm}`;
+}
+
+function renderCalendar() {
+  const grid = document.getElementById('calendar-grid');
+  grid.innerHTML = '';
+  const days = getLast30Days();
+
+  days.forEach((d, idx) => {
+    const key = `${state.activeHabitId}_${d}`;
+    const rec = state.logs[key];
+    const dayNum = idx + 1;
+
+    let bgClass = "bg-[#fbfaf8] hover:bg-slate-100 border-[#e5e2da]";
+    let textClass = "text-slate-400";
+    let badgeHtml = `<span class="text-[10px] text-slate-300 font-medium">+ Ekle</span>`;
+
+    if (rec && rec.minutes > 0) {
+      const m = rec.minutes;
+      if (m <= 30) bgClass = "bg-blue-100 border-blue-200 text-blue-900";
+      else if (m <= 60) bgClass = "bg-blue-300 border-blue-400 text-blue-950";
+      else if (m <= 90) bgClass = "bg-blue-500 border-blue-600 text-white";
+      else bgClass = "bg-blue-700 border-blue-800 text-white";
+
+      const sub = rec.subtopic ? `<p class="text-[10px] truncate max-w-full opacity-90">${rec.subtopic}</p>` : '';
+      badgeHtml = `
+        <span class="text-[11px] font-bold px-1.5 py-0.5 rounded bg-black/15">${m} dk</span>
+        ${sub}
+      `;
+      textClass = (m > 60) ? "text-white/80" : "text-blue-900/80";
+    }
+
+    grid.innerHTML += `
+      <div onclick="openLogModal('${state.activeHabitId}', '${d}')" 
+           class="border rounded-xl p-2.5 h-20 flex flex-col justify-between cursor-pointer transition transform hover:scale-[1.02] shadow-[0_1px_3px_rgba(0,0,0,0.02)] ${bgClass}">
+        <div class="flex justify-between items-center text-xs font-bold ${textClass}">
+          <span>${dayNum}</span>
+          <span class="text-[9px] font-mono opacity-60">${d.slice(5)}</span>
         </div>
-        <ul id="list-tasks" class="flex flex-col gap-2 mt-2 max-h-48 overflow-y-auto pr-1"></ul>
-      </div>
-
-      <div class="bg-slate-800/60 p-5 rounded-xl border border-slate-700 flex flex-col gap-3">
-        <h3 class="font-semibold text-sm uppercase tracking-wider text-emerald-400 flex items-center gap-2">
-          <i class="fas fa-house"></i> Ev & Yaşam Takibi
-        </h3>
-        <div class="flex gap-2">
-          <input id="input-home" type="text" placeholder="Örn: Market alışverişi..." class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-emerald-400">
-          <button onclick="addTask('ev')" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-sm font-semibold">+</button>
-        </div>
-        <ul id="list-home" class="flex flex-col gap-2 mt-2 max-h-48 overflow-y-auto pr-1"></ul>
-      </div>
-    </div>
-  </main>
-
-  <!-- KÜMÜLATİF ANALİZ -->
-  <section class="bg-slate-800/60 p-5 rounded-xl border border-slate-700">
-    <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
-      <i class="fas fa-chart-pie text-cyan-400"></i> Kümülatif Alt Başlık Analizi
-    </h2>
-    <div id="subtopics-summary" class="grid grid-cols-1 md:grid-cols-4 gap-4"></div>
-  </section>
-
-  <!-- MODAL: AI SOHBET PENCERESİ -->
-  <div id="ai-chat-modal" class="fixed inset-0 bg-black/75 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
-    <div class="bg-slate-800 border border-purple-500/50 rounded-2xl w-full max-w-2xl flex flex-col h-[75vh] shadow-2xl overflow-hidden">
-      <div class="flex justify-between items-center bg-slate-900/60 p-4 border-b border-slate-700">
-        <div class="flex items-center gap-2">
-          <div class="w-8 h-8 rounded-full bg-purple-600/30 flex items-center justify-center text-purple-400">
-            <i class="fas fa-robot text-sm"></i>
-          </div>
-          <div>
-            <h3 class="text-sm font-bold text-white">FocoDesk AI Danışmanı</h3>
-            <p id="active-model-label" class="text-[11px] text-purple-400 font-mono">Model: Gemini Flash (Masa Verileri Entegre)</p>
-          </div>
-        </div>
-        <button onclick="toggleChatModal()" class="text-slate-400 hover:text-white p-2">
-          <i class="fas fa-xmark text-lg"></i>
-        </button>
-      </div>
-
-      <div id="chat-messages" class="flex-1 p-4 overflow-y-auto chat-scroll flex flex-col gap-3 text-sm">
-        <div class="bg-slate-700/50 border border-slate-700 self-start p-3 rounded-xl max-w-[85%] text-slate-200">
-          Merhaba! FocoDesk masandaki tüm çalışma sürelerini, alt başlıkları ve bekleyen işlerini doğrudan görebiliyorum. Bana çalışma durumun hakkında analiz sorabilir veya akademik süreçlerinle ilgili danışabilirsin.
+        <div class="flex flex-col gap-0.5 items-start">
+          ${badgeHtml}
         </div>
       </div>
+    `;
+  });
+}
 
-      <div class="p-3 bg-slate-900/80 border-t border-slate-700 flex gap-2">
-        <textarea id="chat-input" rows="2" placeholder="Sorunu yazıp Enter'a bas..." 
-                  class="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500 resize-none"
-                  onkeydown="handleChatKeyDown(event)"></textarea>
-        <button onclick="sendChatMessage()" class="px-4 bg-purple-600 hover:bg-purple-500 rounded-xl text-white font-semibold flex items-center justify-center transition">
-          <i class="fas fa-paper-plane"></i>
-        </button>
-      </div>
-    </div>
-  </div>
+function renderHabitHistory() {
+  const list = document.getElementById('habit-history-list');
+  list.innerHTML = '';
+  const days = getLast30Days().reverse();
 
-  <!-- MODAL: HÜCRE DÜZENLEME -->
-  <div id="log-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
-    <div class="bg-slate-800 border border-slate-700 rounded-xl p-6 w-full max-w-md flex flex-col gap-4 shadow-2xl">
-      <div class="flex justify-between items-center">
-        <div>
-          <h3 id="modal-habit-title" class="text-lg font-bold">Kayıt Ekle</h3>
-          <p id="modal-date-label" class="text-xs text-slate-400"></p>
+  let hasItems = false;
+  days.forEach((d, idx) => {
+    const key = `${state.activeHabitId}_${d}`;
+    const rec = state.logs[key];
+    if (rec && rec.minutes > 0) {
+      hasItems = true;
+      list.innerHTML += `
+        <li class="flex items-center justify-between text-xs p-2 rounded-xl bg-[#fbfaf8] border border-[#e5e2da]">
+          <span class="text-slate-700 truncate font-medium">${d}: ${rec.subtopic || 'Çalışma'}</span>
+          <span class="font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-lg text-[10px]">${rec.minutes} dk</span>
+        </li>
+      `;
+    }
+  });
+
+  if (!hasItems) {
+    list.innerHTML = `<span class="text-xs text-slate-400">Bu göreve ait kayıt yok.</span>`;
+  }
+}
+
+function openLogModal(habitId, dateStr) {
+  state.selectedHabit = habitId;
+  state.selectedDate = dateStr;
+  const habit = state.habits.find(h => h.id === habitId);
+  const rec = state.logs[`${habitId}_${dateStr}`] || {};
+
+  document.getElementById('modal-habit-title').innerText = `${habit.title} Kaydı`;
+  document.getElementById('modal-date-label').innerText = dateStr;
+  document.getElementById('modal-duration').value = rec.minutes || 30;
+  document.getElementById('modal-subtopic').value = rec.subtopic || '';
+
+  const delBtn = document.getElementById('btn-delete-log');
+  if (rec.minutes) delBtn.classList.remove('hidden'); else delBtn.classList.add('hidden');
+
+  const modal = document.getElementById('log-modal');
+  modal.classList.remove('hidden');
+  modal.classList.add('flex');
+}
+
+function closeModal() {
+  const modal = document.getElementById('log-modal');
+  modal.classList.add('hidden');
+  modal.classList.remove('flex');
+}
+
+function setMinutes(m) {
+  document.getElementById('modal-duration').value = m;
+}
+
+async function saveCurrentLog() {
+  const key = `${state.selectedHabit}_${state.selectedDate}`;
+  const minutes = parseInt(document.getElementById('modal-duration').value) || 30;
+  const subtopic = document.getElementById('modal-subtopic').value;
+
+  state.logs[key] = { minutes, subtopic };
+  localStorage.setItem('sumen_logs', JSON.stringify(state.logs));
+
+  if (state.supabaseClient) {
+    const { data: { session } } = await state.supabaseClient.auth.getSession();
+    if (session) {
+      await state.supabaseClient.from('habit_logs').upsert({
+        habit_id: state.selectedHabit,
+        user_id: session.user.id,
+        log_date: state.selectedDate,
+        duration_minutes: minutes,
+        subtopic: subtopic
+      }, { onConflict: 'habit_id,log_date' });
+    }
+  }
+
+  closeModal();
+  renderAll();
+}
+
+async function deleteCurrentLog() {
+  const key = `${state.selectedHabit}_${state.selectedDate}`;
+  delete state.logs[key];
+  localStorage.setItem('sumen_logs', JSON.stringify(state.logs));
+
+  if (state.supabaseClient) {
+    await state.supabaseClient.from('habit_logs')
+      .delete()
+      .match({ habit_id: state.selectedHabit, log_date: state.selectedDate });
+  }
+
+  closeModal();
+  renderAll();
+}
+
+function addTask() {
+  const input = document.getElementById('input-task');
+  if (!input.value.trim()) return;
+  const newTask = { id: Date.now().toString(), text: input.value.trim(), done: false };
+  state.tasks.push(newTask);
+  localStorage.setItem('sumen_tasks', JSON.stringify(state.tasks));
+
+  if (state.supabaseClient) {
+    state.supabaseClient.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        state.supabaseClient.from('tasks').insert({
+          title: newTask.text,
+          category: 'is',
+          is_completed: false,
+          user_id: session.user.id
+        });
+      }
+    });
+  }
+
+  input.value = '';
+  renderTasks();
+  renderMetrics();
+}
+
+function toggleTask(id) {
+  const t = state.tasks.find(x => x.id === id);
+  if (t) {
+    t.done = !t.done;
+    localStorage.setItem('sumen_tasks', JSON.stringify(state.tasks));
+    if (state.supabaseClient) {
+      state.supabaseClient.from('tasks').update({ is_completed: t.done }).eq('id', id);
+    }
+    renderTasks();
+    renderMetrics();
+  }
+}
+
+function deleteTask(id) {
+  state.tasks = state.tasks.filter(x => x.id !== id);
+  localStorage.setItem('sumen_tasks', JSON.stringify(state.tasks));
+  if (state.supabaseClient) {
+    state.supabaseClient.from('tasks').delete().eq('id', id);
+  }
+  renderTasks();
+  renderMetrics();
+}
+
+function renderTasks() {
+  const list = document.getElementById('list-tasks');
+  list.innerHTML = '';
+  document.getElementById('task-badge').innerText = `${state.tasks.length} Adet`;
+
+  state.tasks.forEach(t => {
+    list.innerHTML += `
+      <li class="flex items-center justify-between text-xs p-2 rounded-xl bg-[#fbfaf8] border border-[#e5e2da]">
+        <div class="flex items-center gap-2 flex-1">
+          <input type="checkbox" ${t.done ? 'checked' : ''} onchange="toggleTask('${t.id}')" class="rounded accent-blue-600 cursor-pointer">
+          <span class="${t.done ? 'line-through text-slate-400' : 'text-slate-700'} font-medium truncate">${t.text}</span>
         </div>
-        <button onclick="closeModal()" class="text-slate-400 hover:text-white"><i class="fas fa-xmark text-lg"></i></button>
-      </div>
-
-      <div>
-        <label class="text-xs text-slate-300 font-medium">Çalışma Süresi</label>
-        <div class="grid grid-cols-4 gap-2 mt-1">
-          <button type="button" onclick="setMinutes(15)" class="py-1.5 bg-slate-700 hover:bg-indigo-600 rounded text-xs font-bold transition">15 dk</button>
-          <button type="button" onclick="setMinutes(30)" class="py-1.5 bg-slate-700 hover:bg-indigo-600 rounded text-xs font-bold transition">30 dk</button>
-          <button type="button" onclick="setMinutes(45)" class="py-1.5 bg-slate-700 hover:bg-indigo-600 rounded text-xs font-bold transition">45 dk</button>
-          <button type="button" onclick="setMinutes(60)" class="py-1.5 bg-slate-700 hover:bg-indigo-600 rounded text-xs font-bold transition">60 dk</button>
-        </div>
-        <input id="modal-duration" type="number" step="15" min="0" class="mt-2 w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-sm text-center" placeholder="Özel Süre (dk)">
-      </div>
-
-      <div>
-        <label class="text-xs text-slate-300 font-medium">Alt Başlık / Kapsam</label>
-        <input id="modal-subtopic" type="text" placeholder="Örn: Metodoloji, Literatür taraması" class="mt-1 w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-sm">
-      </div>
-
-      <div>
-        <label class="text-xs text-slate-300 font-medium">Duygu / Not</label>
-        <input id="modal-notes" type="text" placeholder="Örn: 2 makale tarandı" class="mt-1 w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-sm">
-      </div>
-
-      <div class="flex gap-2 justify-end mt-2">
-        <button onclick="deleteCurrentLog()" id="btn-delete-log" class="px-4 py-2 bg-rose-600/20 text-rose-400 hover:bg-rose-600 hover:text-white rounded-lg text-sm font-semibold transition hidden">Sil</button>
-        <button onclick="saveCurrentLog()" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-sm font-semibold transition">Kaydet</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- MODAL: AYARLAR (SADECE GEMINI API) -->
-  <div id="config-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
-    <div class="bg-slate-800 border border-slate-700 rounded-xl p-6 w-full max-w-md flex flex-col gap-4 shadow-2xl">
-      <h3 class="text-lg font-bold flex items-center gap-2">
-        <i class="fas fa-brain text-purple-400"></i> AI Danışman Ayarları
-      </h3>
-      <p class="text-xs text-slate-400">
-        Yapay zekâ asistanını aktif olarak kullanmak için kişisel Gemini API anahtarınızı tanımlayabilirsiniz.
-      </p>
-      <div>
-        <label class="text-xs text-purple-400 font-semibold">Gemini API Key</label>
-        <input id="cfg-gemini" type="password" placeholder="AIzaSy..." class="w-full bg-slate-900 border border-purple-500/50 rounded-lg p-2 text-sm mt-1 focus:outline-none focus:border-purple-400">
-        <span class="text-[11px] text-slate-400 mt-1 block">Ücretsiz anahtar almak için: <a href="https://aistudio.google.com" target="_blank" class="text-indigo-400 underline">aistudio.google.com</a></span>
-      </div>
-      <div class="flex justify-end gap-2 mt-2">
-        <button onclick="toggleConfigModal()" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm">Kapat</button>
-        <button onclick="saveConfigurations()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-sm font-semibold">Kaydet</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- MODÜLER JS DOSYALARI -->
-  <script src="app.js"></script>
-  <script src="ai.js"></script>
-</body>
-</html>
+        <button onclick="deleteTask('${t.id}')" class="text-slate-300 hover:text-rose-500 text-[11px] ml-2"><i class="fas fa-trash"></i></button>
+      </li>
+    `;
+  });
+}
