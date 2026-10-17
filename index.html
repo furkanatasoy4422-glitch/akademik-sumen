@@ -104,7 +104,7 @@
           </div>
           <div>
             <h3 class="text-sm font-bold text-white">Akademik AI Danışmanı</h3>
-            <p id="active-model-label" class="text-[11px] text-slate-400">Model: Otomatik Tespit Ediliyor...</p>
+            <p id="active-model-label" class="text-[11px] text-purple-400 font-mono">Model: Gemini 3.8 Flash</p>
           </div>
         </div>
         <button onclick="toggleChatModal()" class="text-slate-400 hover:text-white p-2">
@@ -508,7 +508,7 @@
       });
     }
 
-    // --- DOĞRUDAN AI SOHBET VE DİNAMİK MODEL BULUCU ---
+    // --- DOĞRUDAN AI SOHBET (DOĞRUDAN GEMINI 3.8 FLASH DESTEĞİ) ---
     function toggleChatModal() {
       const m = document.getElementById('ai-chat-modal');
       m.classList.toggle('hidden');
@@ -539,7 +539,7 @@
 
       const chatContainer = document.getElementById('chat-messages');
 
-      // 1. Kullanıcı mesajını ekle
+      // Kullanıcı mesajı
       chatContainer.innerHTML += `
         <div class="bg-purple-600/30 border border-purple-500/30 text-purple-100 self-end p-3 rounded-xl max-w-[85%] whitespace-pre-wrap">
           ${text}
@@ -548,7 +548,7 @@
       input.value = '';
       chatContainer.scrollTop = chatContainer.scrollHeight;
 
-      // 2. Yükleniyor balonu
+      // Bekleme balonu
       const loadingId = 'loading-' + Date.now();
       chatContainer.innerHTML += `
         <div id="${loadingId}" class="bg-slate-700/50 border border-slate-700 self-start p-3 rounded-xl max-w-[85%] flex items-center gap-2 text-slate-300">
@@ -560,49 +560,38 @@
       const systemPrompt = "Sen kıdemli, yol gösterici ve çözüm odaklı bir akademik danışmansın. Araştırmacının tez, makale, revizyon, literatür ve akademik planlama sorularına doğrudan uygulanabilir ve net yanıtlar ver.";
 
       let replyText = null;
-      let usedModel = "";
 
-      try {
-        // Hesabın desteklediği modelleri doğrudan Google'dan çekiyoruz
-        const modelsRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${geminiKey}`);
-        const modelsData = await modelsRes.json();
+      // Doğrudan Google'ın talep ettiği gemini-3.8-flash modeli ve yedekleri
+      const modelsToTry = [
+        'gemini-3.8-flash',
+        'gemini-3-flash',
+        'gemini-2.0-flash'
+      ];
 
-        let targetModel = null;
-        if (modelsData.models && modelsData.models.length > 0) {
-          const valid = modelsData.models.filter(m => m.supportedGenerationMethods && m.supportedGenerationMethods.includes('generateContent'));
-          const chosen = valid.find(m => m.name.includes('flash')) || valid[0];
-          if (chosen) {
-            targetModel = chosen.name; // Zaten 'models/...' formatındadır
+      for (const m of modelsToTry) {
+        try {
+          const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${geminiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [
+                { role: 'user', parts: [{ text: `${systemPrompt}\n\nSoru: ${text}` }] }
+              ]
+            })
+          });
+
+          const data = await res.json();
+          if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
+            replyText = data.candidates[0].content.parts[0].text;
+            const label = document.getElementById('active-model-label');
+            if (label) label.innerText = `Model: ${m}`;
+            break;
+          } else if (data.error && !replyText) {
+            replyText = `API Hatası: ${data.error.message}`;
           }
+        } catch (e) {
+          replyText = `Bağlantı Hatası: ${e.message}`;
         }
-
-        if (!targetModel) {
-          targetModel = 'models/gemini-2.0-flash';
-        }
-
-        usedModel = targetModel.replace('models/', '');
-        const label = document.getElementById('active-model-label');
-        if (label) label.innerText = `Model: ${usedModel}`;
-
-        // Sorguyu gönderiyoruz
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/${targetModel}:generateContent?key=${geminiKey}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [
-              { role: 'user', parts: [{ text: `${systemPrompt}\n\nSoru: ${text}` }] }
-            ]
-          })
-        });
-
-        const data = await res.json();
-        if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
-          replyText = data.candidates[0].content.parts[0].text;
-        } else if (data.error) {
-          replyText = `API Hatası: ${data.error.message}`;
-        }
-      } catch (err) {
-        replyText = `Bağlantı Hatası: ${err.message}`;
       }
 
       const loaderEl = document.getElementById(loadingId);
