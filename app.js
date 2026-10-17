@@ -1,14 +1,14 @@
-// Supabase Entegrasyonu - Sabit Değerler
 const SUPABASE_URL = "https://mssjazycznwxnqhxrbuv.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_iO5wNMRbtTnq7LttphegXA_zXB6rgaP";
 
 let state = {
   habits: [
-    { id: "tez", title: "Tez Yazımı & Araştırma", color: "#ef4444" },
-    { id: "akreditasyon", title: "Akreditasyon Dosyaları", color: "#10b981" },
-    { id: "dergi", title: "Dergi Hakem Revizyonu", color: "#ec4899" },
-    { id: "okuma", title: "Literatür & Okuma", color: "#8b5cf6" }
+    { id: "tez", title: "Doktora Tezi" },
+    { id: "makale", title: "Dergi & Makale" },
+    { id: "akreditasyon", title: "Akreditasyon Dosyaları" },
+    { id: "okuma", title: "Literatür & Okuma" }
   ],
+  activeHabitId: "tez",
   logs: {},
   tasks: [],
   selectedHabit: null,
@@ -27,10 +27,29 @@ function getLast30Days() {
 }
 
 window.onload = () => {
+  displayCurrentDate();
+  populateHabitSelect();
   loadLocalState();
   initSupabase();
   renderAll();
 };
+
+function displayCurrentDate() {
+  const d = new Date();
+  const options = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
+  document.getElementById('current-date-label').innerText = d.toLocaleDateString('tr-TR', options);
+}
+
+function populateHabitSelect() {
+  const sel = document.getElementById('habit-select');
+  sel.innerHTML = state.habits.map(h => `<option value="${h.id}">${h.title}</option>`).join('');
+  sel.value = state.activeHabitId;
+}
+
+function changeHabit(val) {
+  state.activeHabitId = val;
+  renderAll();
+}
 
 function loadLocalState() {
   const savedLogs = localStorage.getItem('sumen_logs');
@@ -51,8 +70,8 @@ async function checkUserSession() {
   const { data: { session } } = await state.supabaseClient.auth.getSession();
   const authBtn = document.getElementById('auth-btn');
   if (session) {
-    authBtn.innerHTML = `<i class="fas fa-user-check text-emerald-400"></i> ${session.user.email.split('@')[0]}`;
-    authBtn.classList.replace('bg-indigo-600', 'bg-slate-700');
+    authBtn.innerHTML = `<i class="fas fa-user-check text-emerald-600"></i> ${session.user.email.split('@')[0]}`;
+    authBtn.classList.replace('bg-slate-100', 'bg-emerald-50');
     pullCloudData();
   }
 }
@@ -79,79 +98,110 @@ async function pullCloudData() {
   }
   const { data: tasks } = await state.supabaseClient.from('tasks').select('*');
   if (tasks) {
-    state.tasks = tasks.map(t => ({ id: t.id, text: t.title, category: t.category, done: t.is_completed }));
+    state.tasks = tasks.map(t => ({ id: t.id, text: t.title, done: t.is_completed }));
   }
   renderAll();
 }
 
 function renderAll() {
   renderMetrics();
-  renderMatrix();
+  renderCalendar();
   renderTasks();
-  renderSubtopicAnalysis();
+  renderHabitHistory();
 }
 
 function renderMetrics() {
-  const bar = document.getElementById('metrics-bar');
-  bar.innerHTML = '';
-  state.habits.forEach(h => {
-    let totalMins = 0;
-    let count = 0;
-    Object.keys(state.logs).forEach(k => {
-      if (k.startsWith(h.id + '_')) {
-        count++;
-        totalMins += (state.logs[k].minutes || 0);
-      }
-    });
-    const hours = (totalMins / 60).toFixed(1);
-    bar.innerHTML += `
-      <div class="bg-slate-800/80 border border-slate-700 p-4 rounded-xl flex flex-col justify-between" style="border-left: 4px solid ${h.color}">
-        <span class="text-xs text-slate-400 font-semibold">${h.title}</span>
-        <div class="flex items-baseline gap-2 mt-1">
-          <span class="text-2xl font-bold">${count} Gün</span>
-          <span class="text-xs text-slate-400">(${hours} Saat)</span>
+  let totalMins = 0;
+  let activeDays = 0;
+  const days = getLast30Days();
+
+  days.forEach(d => {
+    const key = `${state.activeHabitId}_${d}`;
+    if (state.logs[key] && state.logs[key].minutes > 0) {
+      totalMins += state.logs[key].minutes;
+      activeDays++;
+    }
+  });
+
+  const hours = Math.floor(totalMins / 60);
+  const mins = totalMins % 60;
+  document.getElementById('metric-total-time').innerText = `${hours} sa ${mins} dk`;
+  document.getElementById('metric-streak').innerText = `${activeDays} Gün`;
+
+  const doneTasks = state.tasks.filter(t => t.done).length;
+  document.getElementById('metric-completed-tasks').innerText = `${doneTasks} Adet`;
+
+  const rhythm = Math.round((activeDays / 30) * 100);
+  document.getElementById('metric-rhythm').innerText = `%${rhythm}`;
+}
+
+function renderCalendar() {
+  const grid = document.getElementById('calendar-grid');
+  grid.innerHTML = '';
+  const days = getLast30Days();
+
+  days.forEach((d, idx) => {
+    const key = `${state.activeHabitId}_${d}`;
+    const rec = state.logs[key];
+    const dayNum = idx + 1;
+
+    let bgClass = "bg-[#fbfaf8] hover:bg-slate-100 border-[#e5e2da]";
+    let textClass = "text-slate-400";
+    let badgeHtml = `<span class="text-[10px] text-slate-300 font-medium">+ Ekle</span>`;
+
+    if (rec && rec.minutes > 0) {
+      const m = rec.minutes;
+      if (m <= 30) bgClass = "bg-blue-100 border-blue-200 text-blue-900";
+      else if (m <= 60) bgClass = "bg-blue-300 border-blue-400 text-blue-950";
+      else if (m <= 90) bgClass = "bg-blue-500 border-blue-600 text-white";
+      else bgClass = "bg-blue-700 border-blue-800 text-white";
+
+      const sub = rec.subtopic ? `<p class="text-[10px] truncate max-w-full opacity-90">${rec.subtopic}</p>` : '';
+      badgeHtml = `
+        <span class="text-[11px] font-bold px-1.5 py-0.5 rounded bg-black/15">${m} dk</span>
+        ${sub}
+      `;
+      textClass = (m > 60) ? "text-white/80" : "text-blue-900/80";
+    }
+
+    grid.innerHTML += `
+      <div onclick="openLogModal('${state.activeHabitId}', '${d}')" 
+           class="border rounded-xl p-2.5 h-20 flex flex-col justify-between cursor-pointer transition transform hover:scale-[1.02] shadow-[0_1px_3px_rgba(0,0,0,0.02)] ${bgClass}">
+        <div class="flex justify-between items-center text-xs font-bold ${textClass}">
+          <span>${dayNum}</span>
+          <span class="text-[9px] font-mono opacity-60">${d.slice(5)}</span>
+        </div>
+        <div class="flex flex-col gap-0.5 items-start">
+          ${badgeHtml}
         </div>
       </div>
     `;
   });
 }
 
-function renderMatrix() {
-  const days = getLast30Days();
-  const header = document.getElementById('matrix-header');
-  const rows = document.getElementById('matrix-rows');
+function renderHabitHistory() {
+  const list = document.getElementById('habit-history-list');
+  list.innerHTML = '';
+  const days = getLast30Days().reverse();
 
-  header.innerHTML = days.map(d => {
-    const parts = d.split('-');
-    return `<div class="w-8 text-center text-[10px] text-slate-400 font-mono">${parts[2]}<br>${parts[1]}</div>`;
-  }).join('');
-
-  rows.innerHTML = '';
-  state.habits.forEach(h => {
-    let rowHtml = `<div class="flex items-center gap-2">
-      <div class="w-32 text-xs font-bold truncate text-slate-200" title="${h.title}">${h.title}</div>
-      <div class="flex gap-2">`;
-
-    days.forEach(d => {
-      const key = `${h.id}_${d}`;
-      const rec = state.logs[key];
-      const hasRecord = !!rec;
-      const bg = hasRecord ? h.color : '#1e293b';
-      const title = hasRecord ? `${d} | ${rec.minutes} dk | ${rec.subtopic || ''}` : `${d}`;
-
-      rowHtml += `
-        <button onclick="openLogModal('${h.id}', '${d}')" 
-                title="${title}"
-                style="background-color: ${bg};" 
-                class="w-8 h-8 rounded-md transition transform hover:scale-110 border border-slate-700/60 flex items-center justify-center text-[10px] font-bold text-white shadow-sm">
-          ${hasRecord ? (rec.minutes || '') : ''}
-        </button>
+  let hasItems = false;
+  days.forEach((d) => {
+    const key = `${state.activeHabitId}_${d}`;
+    const rec = state.logs[key];
+    if (rec && rec.minutes > 0) {
+      hasItems = true;
+      list.innerHTML += `
+        <li class="flex items-center justify-between text-xs p-2 rounded-xl bg-[#fbfaf8] border border-[#e5e2da]">
+          <span class="text-slate-700 truncate font-medium">${d}: ${rec.subtopic || 'Çalışma'}</span>
+          <span class="font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-lg text-[10px]">${rec.minutes} dk</span>
+        </li>
       `;
-    });
-
-    rowHtml += `</div></div>`;
-    rows.innerHTML += rowHtml;
+    }
   });
+
+  if (!hasItems) {
+    list.innerHTML = `<span class="text-xs text-slate-400">Bu göreve ait kayıt yok.</span>`;
+  }
 }
 
 function openLogModal(habitId, dateStr) {
@@ -164,7 +214,6 @@ function openLogModal(habitId, dateStr) {
   document.getElementById('modal-date-label').innerText = dateStr;
   document.getElementById('modal-duration').value = rec.minutes || 30;
   document.getElementById('modal-subtopic').value = rec.subtopic || '';
-  document.getElementById('modal-notes').value = rec.notes || '';
 
   const delBtn = document.getElementById('btn-delete-log');
   if (rec.minutes) delBtn.classList.remove('hidden'); else delBtn.classList.add('hidden');
@@ -188,9 +237,8 @@ async function saveCurrentLog() {
   const key = `${state.selectedHabit}_${state.selectedDate}`;
   const minutes = parseInt(document.getElementById('modal-duration').value) || 30;
   const subtopic = document.getElementById('modal-subtopic').value;
-  const notes = document.getElementById('modal-notes').value;
 
-  state.logs[key] = { minutes, subtopic, notes };
+  state.logs[key] = { minutes, subtopic };
   localStorage.setItem('sumen_logs', JSON.stringify(state.logs));
 
   if (state.supabaseClient) {
@@ -201,8 +249,7 @@ async function saveCurrentLog() {
         user_id: session.user.id,
         log_date: state.selectedDate,
         duration_minutes: minutes,
-        subtopic: subtopic,
-        notes: notes
+        subtopic: subtopic
       }, { onConflict: 'habit_id,log_date' });
     }
   }
@@ -226,10 +273,10 @@ async function deleteCurrentLog() {
   renderAll();
 }
 
-function addTask(cat) {
-  const input = document.getElementById(cat === 'is' ? 'input-task' : 'input-home');
+function addTask() {
+  const input = document.getElementById('input-task');
   if (!input.value.trim()) return;
-  const newTask = { id: Date.now().toString(), text: input.value.trim(), category: cat, done: false };
+  const newTask = { id: Date.now().toString(), text: input.value.trim(), done: false };
   state.tasks.push(newTask);
   localStorage.setItem('sumen_tasks', JSON.stringify(state.tasks));
 
@@ -238,7 +285,7 @@ function addTask(cat) {
       if (session) {
         state.supabaseClient.from('tasks').insert({
           title: newTask.text,
-          category: cat,
+          category: 'is',
           is_completed: false,
           user_id: session.user.id
         });
@@ -248,6 +295,7 @@ function addTask(cat) {
 
   input.value = '';
   renderTasks();
+  renderMetrics();
 }
 
 function toggleTask(id) {
@@ -259,54 +307,34 @@ function toggleTask(id) {
       state.supabaseClient.from('tasks').update({ is_completed: t.done }).eq('id', id);
     }
     renderTasks();
+    renderMetrics();
   }
 }
 
-function renderTasks() {
-  const listTasks = document.getElementById('list-tasks');
-  const listHome = document.getElementById('list-home');
-  listTasks.innerHTML = '';
-  listHome.innerHTML = '';
-
-  state.tasks.forEach(t => {
-    const item = `
-      <li class="flex items-center justify-between text-xs p-2 rounded bg-slate-900 border border-slate-700/50">
-        <span class="${t.done ? 'line-through text-slate-500' : 'text-slate-200'}">${t.text}</span>
-        <input type="checkbox" ${t.done ? 'checked' : ''} onchange="toggleTask('${t.id}')" class="rounded accent-amber-500">
-      </li>
-    `;
-    if (t.category === 'is') listTasks.innerHTML += item;
-    else listHome.innerHTML += item;
-  });
+function deleteTask(id) {
+  state.tasks = state.tasks.filter(x => x.id !== id);
+  localStorage.setItem('sumen_tasks', JSON.stringify(state.tasks));
+  if (state.supabaseClient) {
+    state.supabaseClient.from('tasks').delete().eq('id', id);
+  }
+  renderTasks();
+  renderMetrics();
 }
 
-function renderSubtopicAnalysis() {
-  const container = document.getElementById('subtopics-summary');
-  container.innerHTML = '';
-  const breakdown = {};
+function renderTasks() {
+  const list = document.getElementById('list-tasks');
+  list.innerHTML = '';
+  document.getElementById('task-badge').innerText = `${state.tasks.length} Adet`;
 
-  Object.entries(state.logs).forEach(([k, val]) => {
-    const habitId = k.split('_')[0];
-    const sub = val.subtopic ? val.subtopic.trim() : 'Genel Çalışma';
-    if (!breakdown[habitId]) breakdown[habitId] = {};
-    breakdown[habitId][sub] = (breakdown[habitId][sub] || 0) + (val.minutes || 0);
-  });
-
-  state.habits.forEach(h => {
-    const items = breakdown[h.id] || {};
-    let listHtml = '';
-    Object.entries(items).forEach(([sub, mins]) => {
-      listHtml += `<li class="flex justify-between text-xs py-1 border-b border-slate-700/40">
-        <span class="text-slate-300">${sub}</span>
-        <span class="font-bold text-slate-400">${(mins/60).toFixed(1)} sa (${mins} dk)</span>
-      </li>`;
-    });
-
-    container.innerHTML += `
-      <div class="bg-slate-900/60 p-4 rounded-lg border border-slate-700/60">
-        <h4 class="text-xs font-bold uppercase tracking-wider mb-2" style="color: ${h.color}">${h.title}</h4>
-        <ul class="flex flex-col">${listHtml || '<span class="text-xs text-slate-500">Kayıt girilmedi</span>'}</ul>
-      </div>
+  state.tasks.forEach(t => {
+    list.innerHTML += `
+      <li class="flex items-center justify-between text-xs p-2 rounded-xl bg-[#fbfaf8] border border-[#e5e2da]">
+        <div class="flex items-center gap-2 flex-1">
+          <input type="checkbox" ${t.done ? 'checked' : ''} onchange="toggleTask('${t.id}')" class="rounded accent-blue-600 cursor-pointer">
+          <span class="${t.done ? 'line-through text-slate-400' : 'text-slate-700'} font-medium truncate">${t.text}</span>
+        </div>
+        <button onclick="deleteTask('${t.id}')" class="text-slate-300 hover:text-rose-500 text-[11px] ml-2"><i class="fas fa-trash"></i></button>
+      </li>
     `;
   });
 }
