@@ -1,340 +1,640 @@
-const SUPABASE_URL = "https://mssjazycznwxnqhxrbuv.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_iO5wNMRbtTnq7LttphegXA_zXB6rgaP";
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FocoDesk | Çalışma Masası</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    body { background-color: #f7f6f2; color: #1e293b; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    .custom-scroll::-webkit-scrollbar { width: 5px; height: 5px; }
+    .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    .custom-scroll::-webkit-scrollbar-track { background: transparent; }
+  </style>
+</head>
+<body class="min-h-screen p-3 md:p-6 flex flex-col gap-5">
 
-let state = {
-  habits: [
-    { id: "tez", title: "Doktora Tezi" },
-    { id: "makale", title: "Dergi & Makale" },
-    { id: "akreditasyon", title: "Akreditasyon Dosyaları" },
-    { id: "okuma", title: "Literatür & Okuma" }
-  ],
-  activeHabitId: "tez",
-  logs: {},
-  tasks: [],
-  selectedHabit: null,
-  selectedDate: null,
-  supabaseClient: null
-};
+  <!-- ÜST BAR -->
+  <header class="flex items-center justify-between bg-white border border-[#e5e2da] rounded-2xl px-5 py-3 shadow-[0_2px_8px_rgba(0,0,0,0.03)]">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-600 font-black text-sm">⚡</div>
+      <div>
+        <h1 class="text-base font-bold tracking-tight text-slate-800">FocoDesk</h1>
+        <p id="current-date-label" class="text-xs text-slate-400 font-medium"></p>
+      </div>
+    </div>
+    <div class="flex items-center gap-2">
+      <button id="auth-btn" onclick="handleAuthClick()" class="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition flex items-center gap-1.5">
+        <i class="fab fa-google text-slate-500"></i> Google ile Giriş
+      </button>
+      <button onclick="toggleConfigModal()" title="AI Ayarları" class="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition">
+        <i class="fas fa-gear text-sm"></i>
+      </button>
+    </div>
+  </header>
 
-function getLast30Days() {
-  const dates = [];
-  for (let i = 29; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    dates.push(d.toISOString().split('T')[0]);
-  }
-  return dates;
-}
-
-window.onload = () => {
-  displayCurrentDate();
-  populateHabitSelect();
-  loadLocalState();
-  initSupabase();
-  renderAll();
-};
-
-function displayCurrentDate() {
-  const d = new Date();
-  const options = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
-  document.getElementById('current-date-label').innerText = d.toLocaleDateString('tr-TR', options);
-}
-
-function populateHabitSelect() {
-  const sel = document.getElementById('habit-select');
-  sel.innerHTML = state.habits.map(h => `<option value="${h.id}">${h.title}</option>`).join('');
-  sel.value = state.activeHabitId;
-}
-
-function changeHabit(val) {
-  state.activeHabitId = val;
-  renderAll();
-}
-
-function loadLocalState() {
-  const savedLogs = localStorage.getItem('sumen_logs');
-  if (savedLogs) state.logs = JSON.parse(savedLogs);
-  const savedTasks = localStorage.getItem('sumen_tasks');
-  if (savedTasks) state.tasks = JSON.parse(savedTasks);
-}
-
-function initSupabase() {
-  if (window.supabase) {
-    state.supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    checkUserSession();
-  }
-}
-
-async function checkUserSession() {
-  if (!state.supabaseClient) return;
-  const { data: { session } } = await state.supabaseClient.auth.getSession();
-  const authBtn = document.getElementById('auth-btn');
-  if (session) {
-    authBtn.innerHTML = `<i class="fas fa-user-check text-emerald-600"></i> ${session.user.email.split('@')[0]}`;
-    authBtn.classList.replace('bg-slate-100', 'bg-emerald-50');
-    pullCloudData();
-  }
-}
-
-async function handleAuthClick() {
-  if (!state.supabaseClient) return;
-  await state.supabaseClient.auth.signInWithOAuth({
-    provider: 'google',
-    options: { redirectTo: window.location.origin }
-  });
-}
-
-async function pullCloudData() {
-  if (!state.supabaseClient) return;
-  const { data: logs } = await state.supabaseClient.from('habit_logs').select('*');
-  if (logs) {
-    logs.forEach(l => {
-      state.logs[`${l.habit_id}_${l.log_date}`] = {
-        minutes: l.duration_minutes,
-        subtopic: l.subtopic,
-        notes: l.notes
-      };
-    });
-  }
-  const { data: tasks } = await state.supabaseClient.from('tasks').select('*');
-  if (tasks) {
-    state.tasks = tasks.map(t => ({ id: t.id, text: t.title, done: t.is_completed }));
-  }
-  renderAll();
-}
-
-function renderAll() {
-  renderMetrics();
-  renderCalendar();
-  renderTasks();
-  renderHabitHistory();
-}
-
-function renderMetrics() {
-  let totalMins = 0;
-  let activeDays = 0;
-  const days = getLast30Days();
-
-  days.forEach(d => {
-    const key = `${state.activeHabitId}_${d}`;
-    if (state.logs[key] && state.logs[key].minutes > 0) {
-      totalMins += state.logs[key].minutes;
-      activeDays++;
-    }
-  });
-
-  const hours = Math.floor(totalMins / 60);
-  const mins = totalMins % 60;
-  document.getElementById('metric-total-time').innerText = `${hours} sa ${mins} dk`;
-  document.getElementById('metric-streak').innerText = `${activeDays} Gün`;
-
-  const doneTasks = state.tasks.filter(t => t.done).length;
-  document.getElementById('metric-completed-tasks').innerText = `${doneTasks} Adet`;
-
-  const rhythm = Math.round((activeDays / 30) * 100);
-  document.getElementById('metric-rhythm').innerText = `%${rhythm}`;
-}
-
-function renderCalendar() {
-  const grid = document.getElementById('calendar-grid');
-  grid.innerHTML = '';
-  const days = getLast30Days();
-
-  days.forEach((d, idx) => {
-    const key = `${state.activeHabitId}_${d}`;
-    const rec = state.logs[key];
-    const dayNum = idx + 1;
-
-    let bgClass = "bg-[#fbfaf8] hover:bg-slate-100 border-[#e5e2da]";
-    let textClass = "text-slate-400";
-    let badgeHtml = `<span class="text-[10px] text-slate-300 font-medium">+ Ekle</span>`;
-
-    if (rec && rec.minutes > 0) {
-      const m = rec.minutes;
-      if (m <= 30) bgClass = "bg-blue-100 border-blue-200 text-blue-900";
-      else if (m <= 60) bgClass = "bg-blue-300 border-blue-400 text-blue-950";
-      else if (m <= 90) bgClass = "bg-blue-500 border-blue-600 text-white";
-      else bgClass = "bg-blue-700 border-blue-800 text-white";
-
-      const sub = rec.subtopic ? `<p class="text-[10px] truncate max-w-full opacity-90">${rec.subtopic}</p>` : '';
-      badgeHtml = `
-        <span class="text-[11px] font-bold px-1.5 py-0.5 rounded bg-black/15">${m} dk</span>
-        ${sub}
-      `;
-      textClass = (m > 60) ? "text-white/80" : "text-blue-900/80";
-    }
-
-    grid.innerHTML += `
-      <div onclick="openLogModal('${state.activeHabitId}', '${d}')" 
-           class="border rounded-xl p-2.5 h-20 flex flex-col justify-between cursor-pointer transition transform hover:scale-[1.02] shadow-[0_1px_3px_rgba(0,0,0,0.02)] ${bgClass}">
-        <div class="flex justify-between items-center text-xs font-bold ${textClass}">
-          <span>${dayNum}</span>
-          <span class="text-[9px] font-mono opacity-60">${d.slice(5)}</span>
+  <!-- ANA YERLEŞİM (2 SÜTUN) -->
+  <main class="grid grid-cols-1 lg:grid-cols-12 gap-5 flex-1">
+    
+    <!-- SOL SÜTUN -->
+    <div class="lg:col-span-4 flex flex-col gap-4">
+      
+      <!-- KISA VADELİ İŞLER / SPRİNT -->
+      <section class="bg-white border border-[#e5e2da] rounded-2xl p-4 shadow-[0_2px_8px_rgba(0,0,0,0.03)] flex flex-col gap-3">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-bold text-slate-700 uppercase tracking-wider">Kısa Vadeli İşler</span>
+          <span id="task-badge" class="text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-medium">0 Adet</span>
         </div>
-        <div class="flex flex-col gap-0.5 items-start">
-          ${badgeHtml}
+        <div class="flex gap-2">
+          <input id="input-task" type="text" placeholder="Görev veya not yaz..." class="flex-1 bg-[#fbfaf8] border border-[#e5e2da] rounded-xl px-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500">
+          <button onclick="addTask()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-semibold transition">+</button>
+        </div>
+        <ul id="list-tasks" class="flex flex-col gap-1.5 max-h-48 overflow-y-auto custom-scroll pr-1"></ul>
+      </section>
+
+      <!-- SEÇİLİ GÖREV & GEÇMİŞ LİSTE -->
+      <section class="bg-white border border-[#e5e2da] rounded-2xl p-4 shadow-[0_2px_8px_rgba(0,0,0,0.03)] flex-1 flex flex-col gap-3">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Seçilen Görev</span>
+          <select id="habit-select" onchange="changeHabit(this.value)" class="text-xs font-bold bg-[#fbfaf8] border border-[#e5e2da] rounded-lg px-2 py-1 text-slate-800 focus:outline-none"></select>
+        </div>
+        <div class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider pt-2 border-t border-slate-100">Bu Alanın Son Kayıtları</div>
+        <ul id="habit-history-list" class="flex flex-col gap-1.5 max-h-72 overflow-y-auto custom-scroll pr-1 flex-1"></ul>
+      </section>
+    </div>
+
+    <!-- SAĞ SÜTUN -->
+    <div class="lg:col-span-8 flex flex-col gap-4">
+      
+      <!-- ÖZET METRİK KARTLARI -->
+      <section class="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div class="bg-white border border-[#e5e2da] rounded-2xl p-3.5 shadow-[0_2px_8px_rgba(0,0,0,0.03)]">
+          <span class="text-[11px] font-semibold text-slate-400 uppercase">Toplam Odak</span>
+          <p id="metric-total-time" class="text-lg font-bold text-slate-800 mt-1">0 sa 0 dk</p>
+        </div>
+        <div class="bg-white border border-[#e5e2da] rounded-2xl p-3.5 shadow-[0_2px_8px_rgba(0,0,0,0.03)]">
+          <span class="text-[11px] font-semibold text-slate-400 uppercase">Aktif Zincir</span>
+          <p id="metric-streak" class="text-lg font-bold text-emerald-600 mt-1">0 Gün</p>
+        </div>
+        <div class="bg-white border border-[#e5e2da] rounded-2xl p-3.5 shadow-[0_2px_8px_rgba(0,0,0,0.03)]">
+          <span class="text-[11px] font-semibold text-slate-400 uppercase">Tamamlanan</span>
+          <p id="metric-completed-tasks" class="text-lg font-bold text-slate-800 mt-1">0 Adet</p>
+        </div>
+        <div class="bg-white border border-[#e5e2da] rounded-2xl p-3.5 shadow-[0_2px_8px_rgba(0,0,0,0.03)]">
+          <span class="text-[11px] font-semibold text-slate-400 uppercase">Çalışma Ritmi</span>
+          <p id="metric-rhythm" class="text-lg font-bold text-blue-600 mt-1">%0</p>
+        </div>
+      </section>
+
+      <!-- 30 GÜNLÜK TAKVİM GRID -->
+      <section class="bg-white border border-[#e5e2da] rounded-2xl p-5 shadow-[0_2px_8px_rgba(0,0,0,0.03)] flex flex-col gap-4">
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-sm font-bold text-slate-800">30 Günlük Zincir & Isı Haritası</h2>
+            <p class="text-xs text-slate-400">Çalışma süresine göre renk tonu yoğunlaşır</p>
+          </div>
+          <div class="flex items-center gap-1.5 text-[11px] text-slate-400">
+            <span>Az</span>
+            <div class="w-2.5 h-2.5 rounded bg-blue-100"></div>
+            <div class="w-2.5 h-2.5 rounded bg-blue-300"></div>
+            <div class="w-2.5 h-2.5 rounded bg-blue-500"></div>
+            <div class="w-2.5 h-2.5 rounded bg-blue-700"></div>
+            <span>Yoğun</span>
+          </div>
+        </div>
+
+        <div id="calendar-grid" class="grid grid-cols-5 md:grid-cols-6 gap-2.5"></div>
+      </section>
+    </div>
+  </main>
+
+  <!-- SABİT AI BUTONU -->
+  <button onclick="toggleChatModal()" class="fixed bottom-6 right-6 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-full shadow-xl flex items-center gap-2 text-xs font-semibold transition hover:scale-105">
+    <i class="fas fa-sparkles text-amber-400"></i> Gemini'a Sor
+  </button>
+
+  <!-- MODAL: HÜCRE GİRİŞİ -->
+  <div id="log-modal" class="fixed inset-0 bg-slate-900/30 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+    <div class="bg-white border border-[#e5e2da] rounded-2xl p-5 w-full max-w-sm flex flex-col gap-3 shadow-2xl">
+      <div class="flex justify-between items-center">
+        <div>
+          <h3 id="modal-habit-title" class="text-sm font-bold text-slate-800">Kayıt Ekle</h3>
+          <p id="modal-date-label" class="text-xs text-slate-400"></p>
+        </div>
+        <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600"><i class="fas fa-xmark"></i></button>
+      </div>
+
+      <div>
+        <label class="text-[11px] font-semibold text-slate-500 uppercase">Süre (Dakika)</label>
+        <div class="grid grid-cols-4 gap-1.5 mt-1">
+          <button type="button" onclick="setMinutes(15)" class="py-1 bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-600 rounded-lg text-xs font-bold transition">15 dk</button>
+          <button type="button" onclick="setMinutes(30)" class="py-1 bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-600 rounded-lg text-xs font-bold transition">30 dk</button>
+          <button type="button" onclick="setMinutes(45)" class="py-1 bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-600 rounded-lg text-xs font-bold transition">45 dk</button>
+          <button type="button" onclick="setMinutes(60)" class="py-1 bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-600 rounded-lg text-xs font-bold transition">60 dk</button>
+        </div>
+        <input id="modal-duration" type="number" step="15" min="0" class="mt-2 w-full bg-[#fbfaf8] border border-[#e5e2da] rounded-lg p-2 text-xs text-center font-bold focus:outline-none focus:border-blue-500" placeholder="Özel Dakika">
+      </div>
+
+      <div>
+        <label class="text-[11px] font-semibold text-slate-500 uppercase">Yapılan İş / Kapsam</label>
+        <input id="modal-subtopic" type="text" placeholder="Örn: Metot yazımı, veri analizi..." class="mt-1 w-full bg-[#fbfaf8] border border-[#e5e2da] rounded-lg p-2 text-xs text-slate-800 focus:outline-none focus:border-blue-500">
+      </div>
+
+      <div class="flex gap-2 justify-end mt-2">
+        <button onclick="deleteCurrentLog()" id="btn-delete-log" class="px-3 py-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-xl text-xs font-semibold transition hidden">Sil</button>
+        <button onclick="saveCurrentLog()" class="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-semibold transition">Kaydet</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: AI DANIŞMAN SOHBETİ -->
+  <div id="ai-chat-modal" class="fixed inset-0 bg-slate-900/30 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+    <div class="bg-white border border-[#e5e2da] rounded-2xl w-full max-w-lg flex flex-col h-[70vh] shadow-2xl overflow-hidden">
+      <div class="flex justify-between items-center bg-[#fbfaf8] p-3.5 border-b border-[#e5e2da]">
+        <div class="flex items-center gap-2">
+          <div class="w-6 h-6 rounded-lg bg-blue-600 text-white flex items-center justify-center text-xs font-bold">⚡</div>
+          <h3 class="text-xs font-bold text-slate-800">FocoDesk Danışmanı</h3>
+        </div>
+        <button onclick="toggleChatModal()" class="text-slate-400 hover:text-slate-600"><i class="fas fa-xmark"></i></button>
+      </div>
+
+      <div id="chat-messages" class="flex-1 p-4 overflow-y-auto custom-scroll flex flex-col gap-3 text-xs">
+        <div class="bg-slate-100 self-start p-3 rounded-2xl max-w-[85%] text-slate-700">
+          Merhaba! Çalışma masandaki tüm kayıtları görebiliyorum. Çalışma ritmin veya hedeflerinle ilgili ne sormak istersin?
         </div>
       </div>
-    `;
-  });
-}
 
-function renderHabitHistory() {
-  const list = document.getElementById('habit-history-list');
-  list.innerHTML = '';
-  const days = getLast30Days().reverse();
+      <div class="p-3 bg-[#fbfaf8] border-t border-[#e5e2da] flex gap-2">
+        <textarea id="chat-input" rows="2" placeholder="Sorunu yazıp Enter'a bas..." class="flex-1 bg-white border border-[#e5e2da] rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-blue-500 resize-none" onkeydown="handleChatKeyDown(event)"></textarea>
+        <button onclick="sendChatMessage()" class="px-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold transition"><i class="fas fa-paper-plane"></i></button>
+      </div>
+    </div>
+  </div>
 
-  let hasItems = false;
-  days.forEach((d, idx) => {
-    const key = `${state.activeHabitId}_${d}`;
-    const rec = state.logs[key];
-    if (rec && rec.minutes > 0) {
-      hasItems = true;
-      list.innerHTML += `
-        <li class="flex items-center justify-between text-xs p-2 rounded-xl bg-[#fbfaf8] border border-[#e5e2da]">
-          <span class="text-slate-700 truncate font-medium">${d}: ${rec.subtopic || 'Çalışma'}</span>
-          <span class="font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-lg text-[10px]">${rec.minutes} dk</span>
-        </li>
-      `;
+  <!-- MODAL: AYARLAR -->
+  <div id="config-modal" class="fixed inset-0 bg-slate-900/30 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+    <div class="bg-white border border-[#e5e2da] rounded-2xl p-5 w-full max-w-sm flex flex-col gap-3 shadow-2xl">
+      <h3 class="text-sm font-bold text-slate-800">AI Ayarları</h3>
+      <div>
+        <label class="text-[11px] font-semibold text-slate-500 uppercase">Gemini API Key</label>
+        <input id="cfg-gemini" type="password" placeholder="AIzaSy..." class="w-full bg-[#fbfaf8] border border-[#e5e2da] rounded-xl p-2 text-xs mt-1 focus:outline-none focus:border-blue-500">
+        <span class="text-[10px] text-slate-400 mt-1 block">aistudio.google.com üzerinden alabilirsiniz.</span>
+      </div>
+      <div class="flex justify-end gap-2 mt-2">
+        <button onclick="toggleConfigModal()" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold">Kapat</button>
+        <button onclick="saveConfigurations()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-semibold">Kaydet</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- JAVASCRIPT ÇEKİRDEK KODLARI -->
+  <script>
+    const SUPABASE_URL = "https://mssjazycznwxnqhxrbuv.supabase.co";
+    const SUPABASE_ANON_KEY = "sb_publishable_iO5wNMRbtTnq7LttphegXA_zXB6rgaP";
+
+    let state = {
+      habits: [
+        { id: "tez", title: "Doktora Tezi" },
+        { id: "makale", title: "Dergi & Makale" },
+        { id: "akreditasyon", title: "Akreditasyon Dosyaları" },
+        { id: "okuma", title: "Literatür & Okuma" }
+      ],
+      activeHabitId: "tez",
+      logs: {},
+      tasks: [],
+      selectedHabit: null,
+      selectedDate: null,
+      supabaseClient: null
+    };
+
+    function getLast30Days() {
+      const dates = [];
+      for (let i = 29; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        dates.push(d.toISOString().split('T')[0]);
+      }
+      return dates;
     }
-  });
 
-  if (!hasItems) {
-    list.innerHTML = `<span class="text-xs text-slate-400">Bu göreve ait kayıt yok.</span>`;
-  }
-}
+    window.onload = function() {
+      displayCurrentDate();
+      populateHabitSelect();
+      loadLocalState();
+      initSupabase();
+      renderAll();
+    };
 
-function openLogModal(habitId, dateStr) {
-  state.selectedHabit = habitId;
-  state.selectedDate = dateStr;
-  const habit = state.habits.find(h => h.id === habitId);
-  const rec = state.logs[`${habitId}_${dateStr}`] || {};
-
-  document.getElementById('modal-habit-title').innerText = `${habit.title} Kaydı`;
-  document.getElementById('modal-date-label').innerText = dateStr;
-  document.getElementById('modal-duration').value = rec.minutes || 30;
-  document.getElementById('modal-subtopic').value = rec.subtopic || '';
-
-  const delBtn = document.getElementById('btn-delete-log');
-  if (rec.minutes) delBtn.classList.remove('hidden'); else delBtn.classList.add('hidden');
-
-  const modal = document.getElementById('log-modal');
-  modal.classList.remove('hidden');
-  modal.classList.add('flex');
-}
-
-function closeModal() {
-  const modal = document.getElementById('log-modal');
-  modal.classList.add('hidden');
-  modal.classList.remove('flex');
-}
-
-function setMinutes(m) {
-  document.getElementById('modal-duration').value = m;
-}
-
-async function saveCurrentLog() {
-  const key = `${state.selectedHabit}_${state.selectedDate}`;
-  const minutes = parseInt(document.getElementById('modal-duration').value) || 30;
-  const subtopic = document.getElementById('modal-subtopic').value;
-
-  state.logs[key] = { minutes, subtopic };
-  localStorage.setItem('sumen_logs', JSON.stringify(state.logs));
-
-  if (state.supabaseClient) {
-    const { data: { session } } = await state.supabaseClient.auth.getSession();
-    if (session) {
-      await state.supabaseClient.from('habit_logs').upsert({
-        habit_id: state.selectedHabit,
-        user_id: session.user.id,
-        log_date: state.selectedDate,
-        duration_minutes: minutes,
-        subtopic: subtopic
-      }, { onConflict: 'habit_id,log_date' });
+    function displayCurrentDate() {
+      const d = new Date();
+      const options = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
+      document.getElementById('current-date-label').innerText = d.toLocaleDateString('tr-TR', options);
     }
-  }
 
-  closeModal();
-  renderAll();
-}
+    function populateHabitSelect() {
+      const sel = document.getElementById('habit-select');
+      sel.innerHTML = state.habits.map(h => `<option value="${h.id}">${h.title}</option>`).join('');
+      sel.value = state.activeHabitId;
+    }
 
-async function deleteCurrentLog() {
-  const key = `${state.selectedHabit}_${state.selectedDate}`;
-  delete state.logs[key];
-  localStorage.setItem('sumen_logs', JSON.stringify(state.logs));
+    function changeHabit(val) {
+      state.activeHabitId = val;
+      renderAll();
+    }
 
-  if (state.supabaseClient) {
-    await state.supabaseClient.from('habit_logs')
-      .delete()
-      .match({ habit_id: state.selectedHabit, log_date: state.selectedDate });
-  }
+    function loadLocalState() {
+      const savedLogs = localStorage.getItem('sumen_logs');
+      if (savedLogs) state.logs = JSON.parse(savedLogs);
+      const savedTasks = localStorage.getItem('sumen_tasks');
+      if (savedTasks) state.tasks = JSON.parse(savedTasks);
+    }
 
-  closeModal();
-  renderAll();
-}
+    function initSupabase() {
+      if (window.supabase) {
+        state.supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        checkUserSession();
+      }
+    }
 
-function addTask() {
-  const input = document.getElementById('input-task');
-  if (!input.value.trim()) return;
-  const newTask = { id: Date.now().toString(), text: input.value.trim(), done: false };
-  state.tasks.push(newTask);
-  localStorage.setItem('sumen_tasks', JSON.stringify(state.tasks));
-
-  if (state.supabaseClient) {
-    state.supabaseClient.auth.getSession().then(({ data: { session } }) => {
+    async function checkUserSession() {
+      if (!state.supabaseClient) return;
+      const { data: { session } } = await state.supabaseClient.auth.getSession();
+      const authBtn = document.getElementById('auth-btn');
       if (session) {
-        state.supabaseClient.from('tasks').insert({
-          title: newTask.text,
-          category: 'is',
-          is_completed: false,
-          user_id: session.user.id
+        authBtn.innerHTML = `<i class="fas fa-user-check text-emerald-600"></i> ${session.user.email.split('@')[0]}`;
+        authBtn.classList.replace('bg-slate-100', 'bg-emerald-50');
+        pullCloudData();
+      }
+    }
+
+    async function handleAuthClick() {
+      if (!state.supabaseClient) return;
+      await state.supabaseClient.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: window.location.origin }
+      });
+    }
+
+    async function pullCloudData() {
+      if (!state.supabaseClient) return;
+      const { data: logs } = await state.supabaseClient.from('habit_logs').select('*');
+      if (logs) {
+        logs.forEach(l => {
+          state.logs[`${l.habit_id}_${l.log_date}`] = {
+            minutes: l.duration_minutes,
+            subtopic: l.subtopic,
+            notes: l.notes
+          };
         });
       }
-    });
-  }
-
-  input.value = '';
-  renderTasks();
-  renderMetrics();
-}
-
-function toggleTask(id) {
-  const t = state.tasks.find(x => x.id === id);
-  if (t) {
-    t.done = !t.done;
-    localStorage.setItem('sumen_tasks', JSON.stringify(state.tasks));
-    if (state.supabaseClient) {
-      state.supabaseClient.from('tasks').update({ is_completed: t.done }).eq('id', id);
+      const { data: tasks } = await state.supabaseClient.from('tasks').select('*');
+      if (tasks) {
+        state.tasks = tasks.map(t => ({ id: t.id, text: t.title, done: t.is_completed }));
+      }
+      renderAll();
     }
-    renderTasks();
-    renderMetrics();
-  }
-}
 
-function deleteTask(id) {
-  state.tasks = state.tasks.filter(x => x.id !== id);
-  localStorage.setItem('sumen_tasks', JSON.stringify(state.tasks));
-  if (state.supabaseClient) {
-    state.supabaseClient.from('tasks').delete().eq('id', id);
-  }
-  renderTasks();
-  renderMetrics();
-}
+    function renderAll() {
+      renderMetrics();
+      renderCalendar();
+      renderTasks();
+      renderHabitHistory();
+    }
 
-function renderTasks() {
-  const list = document.getElementById('list-tasks');
-  list.innerHTML = '';
-  document.getElementById('task-badge').innerText = `${state.tasks.length} Adet`;
+    function renderMetrics() {
+      let totalMins = 0;
+      let activeDays = 0;
+      const days = getLast30Days();
 
-  state.tasks.forEach(t => {
-    list.innerHTML += `
-      <li class="flex items-center justify-between text-xs p-2 rounded-xl bg-[#fbfaf8] border border-[#e5e2da]">
-        <div class="flex items-center gap-2 flex-1">
-          <input type="checkbox" ${t.done ? 'checked' : ''} onchange="toggleTask('${t.id}')" class="rounded accent-blue-600 cursor-pointer">
-          <span class="${t.done ? 'line-through text-slate-400' : 'text-slate-700'} font-medium truncate">${t.text}</span>
+      days.forEach(d => {
+        const key = `${state.activeHabitId}_${d}`;
+        if (state.logs[key] && state.logs[key].minutes > 0) {
+          totalMins += state.logs[key].minutes;
+          activeDays++;
+        }
+      });
+
+      const hours = Math.floor(totalMins / 60);
+      const mins = totalMins % 60;
+      document.getElementById('metric-total-time').innerText = `${hours} sa ${mins} dk`;
+      document.getElementById('metric-streak').innerText = `${activeDays} Gün`;
+
+      const doneTasks = state.tasks.filter(t => t.done).length;
+      document.getElementById('metric-completed-tasks').innerText = `${doneTasks} Adet`;
+
+      const rhythm = Math.round((activeDays / 30) * 100);
+      document.getElementById('metric-rhythm').innerText = `%${rhythm}`;
+    }
+
+    function renderCalendar() {
+      const grid = document.getElementById('calendar-grid');
+      grid.innerHTML = '';
+      const days = getLast30Days();
+
+      days.forEach((d, idx) => {
+        const key = `${state.activeHabitId}_${d}`;
+        const rec = state.logs[key];
+        const dayNum = idx + 1;
+
+        let bgClass = "bg-[#fbfaf8] hover:bg-slate-100 border-[#e5e2da]";
+        let textClass = "text-slate-400";
+        let badgeHtml = `<span class="text-[10px] text-slate-300 font-medium">+ Ekle</span>`;
+
+        if (rec && rec.minutes > 0) {
+          const m = rec.minutes;
+          if (m <= 30) bgClass = "bg-blue-100 border-blue-200 text-blue-900";
+          else if (m <= 60) bgClass = "bg-blue-300 border-blue-400 text-blue-950";
+          else if (m <= 90) bgClass = "bg-blue-500 border-blue-600 text-white";
+          else bgClass = "bg-blue-700 border-blue-800 text-white";
+
+          const sub = rec.subtopic ? `<p class="text-[10px] truncate max-w-full opacity-90">${rec.subtopic}</p>` : '';
+          badgeHtml = `
+            <span class="text-[11px] font-bold px-1.5 py-0.5 rounded bg-black/15">${m} dk</span>
+            ${sub}
+          `;
+          textClass = (m > 60) ? "text-white/80" : "text-blue-900/80";
+        }
+
+        grid.innerHTML += `
+          <div onclick="openLogModal('${state.activeHabitId}', '${d}')" 
+               class="border rounded-xl p-2.5 h-20 flex flex-col justify-between cursor-pointer transition transform hover:scale-[1.02] shadow-[0_1px_3px_rgba(0,0,0,0.02)] ${bgClass}">
+            <div class="flex justify-between items-center text-xs font-bold ${textClass}">
+              <span>${dayNum}</span>
+              <span class="text-[9px] font-mono opacity-60">${d.slice(5)}</span>
+            </div>
+            <div class="flex flex-col gap-0.5 items-start">
+              ${badgeHtml}
+            </div>
+          </div>
+        `;
+      });
+    }
+
+    function renderHabitHistory() {
+      const list = document.getElementById('habit-history-list');
+      list.innerHTML = '';
+      const days = getLast30Days().reverse();
+
+      let hasItems = false;
+      days.forEach(d => {
+        const key = `${state.activeHabitId}_${d}`;
+        const rec = state.logs[key];
+        if (rec && rec.minutes > 0) {
+          hasItems = true;
+          list.innerHTML += `
+            <li class="flex items-center justify-between text-xs p-2 rounded-xl bg-[#fbfaf8] border border-[#e5e2da]">
+              <span class="text-slate-700 truncate font-medium">${d}: ${rec.subtopic || 'Çalışma'}</span>
+              <span class="font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-lg text-[10px]">${rec.minutes} dk</span>
+            </li>
+          `;
+        }
+      });
+
+      if (!hasItems) {
+        list.innerHTML = `<span class="text-xs text-slate-400">Bu göreve ait kayıt yok.</span>`;
+      }
+    }
+
+    function openLogModal(habitId, dateStr) {
+      state.selectedHabit = habitId;
+      state.selectedDate = dateStr;
+      const habit = state.habits.find(h => h.id === habitId);
+      const rec = state.logs[`${habitId}_${dateStr}`] || {};
+
+      document.getElementById('modal-habit-title').innerText = `${habit.title} Kaydı`;
+      document.getElementById('modal-date-label').innerText = dateStr;
+      document.getElementById('modal-duration').value = rec.minutes || 30;
+      document.getElementById('modal-subtopic').value = rec.subtopic || '';
+
+      const delBtn = document.getElementById('btn-delete-log');
+      if (rec.minutes) delBtn.classList.remove('hidden'); else delBtn.classList.add('hidden');
+
+      const modal = document.getElementById('log-modal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeModal() {
+      const modal = document.getElementById('log-modal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    function setMinutes(m) {
+      document.getElementById('modal-duration').value = m;
+    }
+
+    async function saveCurrentLog() {
+      const key = `${state.selectedHabit}_${state.selectedDate}`;
+      const minutes = parseInt(document.getElementById('modal-duration').value) || 30;
+      const subtopic = document.getElementById('modal-subtopic').value;
+
+      state.logs[key] = { minutes, subtopic };
+      localStorage.setItem('sumen_logs', JSON.stringify(state.logs));
+
+      if (state.supabaseClient) {
+        const { data: { session } } = await state.supabaseClient.auth.getSession();
+        if (session) {
+          await state.supabaseClient.from('habit_logs').upsert({
+            habit_id: state.selectedHabit,
+            user_id: session.user.id,
+            log_date: state.selectedDate,
+            duration_minutes: minutes,
+            subtopic: subtopic
+          }, { onConflict: 'habit_id,log_date' });
+        }
+      }
+
+      closeModal();
+      renderAll();
+    }
+
+    async function deleteCurrentLog() {
+      const key = `${state.selectedHabit}_${state.selectedDate}`;
+      delete state.logs[key];
+      localStorage.setItem('sumen_logs', JSON.stringify(state.logs));
+
+      if (state.supabaseClient) {
+        await state.supabaseClient.from('habit_logs')
+          .delete()
+          .match({ habit_id: state.selectedHabit, log_date: state.selectedDate });
+      }
+
+      closeModal();
+      renderAll();
+    }
+
+    function addTask() {
+      const input = document.getElementById('input-task');
+      if (!input.value.trim()) return;
+      const newTask = { id: Date.now().toString(), text: input.value.trim(), done: false };
+      state.tasks.push(newTask);
+      localStorage.setItem('sumen_tasks', JSON.stringify(state.tasks));
+
+      if (state.supabaseClient) {
+        state.supabaseClient.auth.getSession().then(({ data: { session } }) => {
+          if (session) {
+            state.supabaseClient.from('tasks').insert({
+              title: newTask.text,
+              category: 'is',
+              is_completed: false,
+              user_id: session.user.id
+            });
+          }
+        });
+      }
+
+      input.value = '';
+      renderTasks();
+      renderMetrics();
+    }
+
+    function toggleTask(id) {
+      const t = state.tasks.find(x => x.id === id);
+      if (t) {
+        t.done = !t.done;
+        localStorage.setItem('sumen_tasks', JSON.stringify(state.tasks));
+        if (state.supabaseClient) {
+          state.supabaseClient.from('tasks').update({ is_completed: t.done }).eq('id', id);
+        }
+        renderTasks();
+        renderMetrics();
+      }
+    }
+
+    function deleteTask(id) {
+      state.tasks = state.tasks.filter(x => x.id !== id);
+      localStorage.setItem('sumen_tasks', JSON.stringify(state.tasks));
+      if (state.supabaseClient) {
+        state.supabaseClient.from('tasks').delete().eq('id', id);
+      }
+      renderTasks();
+      renderMetrics();
+    }
+
+    function renderTasks() {
+      const list = document.getElementById('list-tasks');
+      list.innerHTML = '';
+      document.getElementById('task-badge').innerText = `${state.tasks.length} Adet`;
+
+      state.tasks.forEach(t => {
+        list.innerHTML += `
+          <li class="flex items-center justify-between text-xs p-2 rounded-xl bg-[#fbfaf8] border border-[#e5e2da]">
+            <div class="flex items-center gap-2 flex-1">
+              <input type="checkbox" ${t.done ? 'checked' : ''} onchange="toggleTask('${t.id}')" class="rounded accent-blue-600 cursor-pointer">
+              <span class="${t.done ? 'line-through text-slate-400' : 'text-slate-700'} font-medium truncate">${t.text}</span>
+            </div>
+            <button onclick="deleteTask('${t.id}')" class="text-slate-300 hover:text-rose-500 text-[11px] ml-2"><i class="fas fa-trash"></i></button>
+          </li>
+        `;
+      });
+    }
+
+    // AI ASİSTAN FONKSİYONLARI
+    function toggleChatModal() {
+      const m = document.getElementById('ai-chat-modal');
+      m.classList.toggle('hidden');
+      m.classList.toggle('flex');
+      if (!m.classList.contains('hidden')) {
+        setTimeout(() => document.getElementById('chat-input').focus(), 100);
+      }
+    }
+
+    function handleChatKeyDown(e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendChatMessage();
+      }
+    }
+
+    async function sendChatMessage() {
+      const input = document.getElementById('chat-input');
+      const text = input.value.trim();
+      if (!text) return;
+
+      const geminiKey = (localStorage.getItem('gemini_api_key') || '').trim();
+      if (!geminiKey) {
+        alert("Lütfen önce sağ üstteki Ayarlar (⚙️) butonundan Gemini API anahtarınızı girin.");
+        toggleConfigModal();
+        return;
+      }
+
+      const chatContainer = document.getElementById('chat-messages');
+      chatContainer.innerHTML += `
+        <div class="bg-blue-600 text-white self-end p-3 rounded-2xl max-w-[85%] whitespace-pre-wrap">
+          ${text}
         </div>
-        <button onclick="deleteTask('${t.id}')" class="text-slate-300 hover:text-rose-500 text-[11px] ml-2"><i class="fas fa-trash"></i></button>
-      </li>
-    `;
-  });
-}
+      `;
+      input.value = '';
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+
+      const loadingId = 'loading-' + Date.now();
+      chatContainer.innerHTML += `
+        <div id="${loadingId}" class="bg-slate-100 text-slate-500 self-start p-3 rounded-2xl max-w-[85%] flex items-center gap-2">
+          <i class="fas fa-circle-notch fa-spin text-blue-600"></i> Yanıt hazırlanıyor...
+        </div>
+      `;
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+
+      const focoVerileri = {
+        alanlar: state.habits.map(h => h.title),
+        kayitlar: state.logs,
+        yapilacak_isler: state.tasks.filter(t => !t.done).map(t => t.text)
+      };
+
+      const systemPrompt = `Sen FocoDesk akıllı akademik danışmanısın. Kullanıcı verileri: ${JSON.stringify(focoVerileri)}. Samimi ve net Türkçe yanıt ver.`;
+
+      let replyText = null;
+      const modelsToTry = ['gemini-2.5-flash', 'gemini-1.5-flash'];
+
+      for (const m of modelsToTry) {
+        try {
+          const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${geminiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ role: 'user', parts: [{ text: `${systemPrompt}\n\nSoru: ${text}` }] }]
+            })
+          });
+
+          const data = await res.json();
+          if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
+            replyText = data.candidates[0].content.parts[0].text;
+            break;
+          }
+        } catch (e) {
+          replyText = `Bağlantı Hatası: ${e.message}`;
+        }
+      }
+
+      const loaderEl = document.getElementById(loadingId);
+      if (loaderEl) loaderEl.remove();
+
+      chatContainer.innerHTML += `
+        <div class="bg-slate-100 text-slate-800 self-start p-3 rounded-2xl max-w-[85%] whitespace-pre-wrap leading-relaxed">
+          ${replyText || "Cevap üretilemedi."}
+        </div>
+      `;
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+
+    function toggleConfigModal() {
+      const m = document.getElementById('config-modal');
+      m.classList.toggle('hidden');
+      m.classList.toggle('flex');
+      document.getElementById('cfg-gemini').value = localStorage.getItem('gemini_api_key') || '';
+    }
+
+    function saveConfigurations() {
+      const g = document.getElementById('cfg-gemini').value.trim();
+      if (g) {
+        localStorage.setItem('gemini_api_key', g);
+        alert("Gemini API Anahtarı kaydedildi!");
+      }
+      toggleConfigModal();
+    }
+  </script>
+</body>
+</html>
