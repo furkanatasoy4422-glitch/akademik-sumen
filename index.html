@@ -1,197 +1,4 @@
-<!DOCTYPE html>
-<html lang="tr">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>FocoDesk | Çalışma Masası</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <style>
-    body { background-color: #f7f6f2; color: #1e293b; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    .custom-scroll::-webkit-scrollbar { width: 5px; height: 5px; }
-    .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-    .custom-scroll::-webkit-scrollbar-track { background: transparent; }
-  </style>
-</head>
-<body class="min-h-screen p-3 md:p-6 flex flex-col gap-5">
-
-  <!-- ÜST BAR -->
-  <header class="flex items-center justify-between bg-white border border-[#e5e2da] rounded-2xl px-5 py-3 shadow-[0_2px_8px_rgba(0,0,0,0.03)]">
-    <div class="flex items-center gap-3">
-      <div class="w-8 h-8 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-600 font-black text-sm">⚡</div>
-      <div>
-        <h1 class="text-base font-bold tracking-tight text-slate-800">FocoDesk</h1>
-        <p id="current-date-label" class="text-xs text-slate-400 font-medium"></p>
-      </div>
-    </div>
-    <div class="flex items-center gap-2">
-      <button id="auth-btn" onclick="handleAuthClick()" class="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition flex items-center gap-1.5">
-        <i class="fab fa-google text-slate-500"></i> Google ile Giriş
-      </button>
-      <button onclick="toggleConfigModal()" title="AI Ayarları" class="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition">
-        <i class="fas fa-gear text-sm"></i>
-      </button>
-    </div>
-  </header>
-
-  <!-- ANA YERLEŞİM (2 SÜTUN) -->
-  <main class="grid grid-cols-1 lg:grid-cols-12 gap-5 flex-1">
-    
-    <!-- SOL SÜTUN -->
-    <div class="lg:col-span-4 flex flex-col gap-4">
-      
-      <!-- KISA VADELİ İŞLER / SPRİNT -->
-      <section class="bg-white border border-[#e5e2da] rounded-2xl p-4 shadow-[0_2px_8px_rgba(0,0,0,0.03)] flex flex-col gap-3">
-        <div class="flex items-center justify-between">
-          <span class="text-xs font-bold text-slate-700 uppercase tracking-wider">Kısa Vadeli İşler</span>
-          <span id="task-badge" class="text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-medium">0 Adet</span>
-        </div>
-        <div class="flex gap-2">
-          <input id="input-task" type="text" placeholder="Görev veya not yaz..." class="flex-1 bg-[#fbfaf8] border border-[#e5e2da] rounded-xl px-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500">
-          <button onclick="addTask()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-semibold transition">+</button>
-        </div>
-        <ul id="list-tasks" class="flex flex-col gap-1.5 max-h-48 overflow-y-auto custom-scroll pr-1"></ul>
-      </section>
-
-      <!-- SEÇİLİ GÖREV & GEÇMİŞ LİSTE -->
-      <section class="bg-white border border-[#e5e2da] rounded-2xl p-4 shadow-[0_2px_8px_rgba(0,0,0,0.03)] flex-1 flex flex-col gap-3">
-        <div class="flex items-center justify-between">
-          <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Seçilen Görev</span>
-          <select id="habit-select" onchange="changeHabit(this.value)" class="text-xs font-bold bg-[#fbfaf8] border border-[#e5e2da] rounded-lg px-2 py-1 text-slate-800 focus:outline-none"></select>
-        </div>
-        <div class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider pt-2 border-t border-slate-100">Bu Alanın Son Kayıtları</div>
-        <ul id="habit-history-list" class="flex flex-col gap-1.5 max-h-72 overflow-y-auto custom-scroll pr-1 flex-1"></ul>
-      </section>
-    </div>
-
-    <!-- SAĞ SÜTUN -->
-    <div class="lg:col-span-8 flex flex-col gap-4">
-      
-      <!-- ÖZET METRİK KARTLARI -->
-      <section class="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div class="bg-white border border-[#e5e2da] rounded-2xl p-3.5 shadow-[0_2px_8px_rgba(0,0,0,0.03)]">
-          <span class="text-[11px] font-semibold text-slate-400 uppercase">Toplam Odak</span>
-          <p id="metric-total-time" class="text-lg font-bold text-slate-800 mt-1">0 sa 0 dk</p>
-        </div>
-        <div class="bg-white border border-[#e5e2da] rounded-2xl p-3.5 shadow-[0_2px_8px_rgba(0,0,0,0.03)]">
-          <span class="text-[11px] font-semibold text-slate-400 uppercase">Aktif Zincir</span>
-          <p id="metric-streak" class="text-lg font-bold text-emerald-600 mt-1">0 Gün</p>
-        </div>
-        <div class="bg-white border border-[#e5e2da] rounded-2xl p-3.5 shadow-[0_2px_8px_rgba(0,0,0,0.03)]">
-          <span class="text-[11px] font-semibold text-slate-400 uppercase">Tamamlanan</span>
-          <p id="metric-completed-tasks" class="text-lg font-bold text-slate-800 mt-1">0 Adet</p>
-        </div>
-        <div class="bg-white border border-[#e5e2da] rounded-2xl p-3.5 shadow-[0_2px_8px_rgba(0,0,0,0.03)]">
-          <span class="text-[11px] font-semibold text-slate-400 uppercase">Çalışma Ritmi</span>
-          <p id="metric-rhythm" class="text-lg font-bold text-blue-600 mt-1">%0</p>
-        </div>
-      </section>
-
-      <!-- 30 GÜNLÜK TAKVİM GRID -->
-      <section class="bg-white border border-[#e5e2da] rounded-2xl p-5 shadow-[0_2px_8px_rgba(0,0,0,0.03)] flex flex-col gap-4">
-        <div class="flex items-center justify-between">
-          <div>
-            <h2 class="text-sm font-bold text-slate-800">30 Günlük Zincir & Isı Haritası</h2>
-            <p class="text-xs text-slate-400">Çalışma süresine göre renk tonu yoğunlaşır</p>
-          </div>
-          <div class="flex items-center gap-1.5 text-[11px] text-slate-400">
-            <span>Az</span>
-            <div class="w-2.5 h-2.5 rounded bg-blue-100"></div>
-            <div class="w-2.5 h-2.5 rounded bg-blue-300"></div>
-            <div class="w-2.5 h-2.5 rounded bg-blue-500"></div>
-            <div class="w-2.5 h-2.5 rounded bg-blue-700"></div>
-            <span>Yoğun</span>
-          </div>
-        </div>
-
-        <div id="calendar-grid" class="grid grid-cols-5 md:grid-cols-6 gap-2.5"></div>
-      </section>
-    </div>
-  </main>
-
-  <!-- SABİT AI BUTONU -->
-  <button onclick="toggleChatModal()" class="fixed bottom-6 right-6 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-full shadow-xl flex items-center gap-2 text-xs font-semibold transition hover:scale-105">
-    <i class="fas fa-sparkles text-amber-400"></i> Gemini'a Sor
-  </button>
-
-  <!-- MODAL: HÜCRE GİRİŞİ -->
-  <div id="log-modal" class="fixed inset-0 bg-slate-900/30 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
-    <div class="bg-white border border-[#e5e2da] rounded-2xl p-5 w-full max-w-sm flex flex-col gap-3 shadow-2xl">
-      <div class="flex justify-between items-center">
-        <div>
-          <h3 id="modal-habit-title" class="text-sm font-bold text-slate-800">Kayıt Ekle</h3>
-          <p id="modal-date-label" class="text-xs text-slate-400"></p>
-        </div>
-        <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600"><i class="fas fa-xmark"></i></button>
-      </div>
-
-      <div>
-        <label class="text-[11px] font-semibold text-slate-500 uppercase">Süre (Dakika)</label>
-        <div class="grid grid-cols-4 gap-1.5 mt-1">
-          <button type="button" onclick="setMinutes(15)" class="py-1 bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-600 rounded-lg text-xs font-bold transition">15 dk</button>
-          <button type="button" onclick="setMinutes(30)" class="py-1 bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-600 rounded-lg text-xs font-bold transition">30 dk</button>
-          <button type="button" onclick="setMinutes(45)" class="py-1 bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-600 rounded-lg text-xs font-bold transition">45 dk</button>
-          <button type="button" onclick="setMinutes(60)" class="py-1 bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-600 rounded-lg text-xs font-bold transition">60 dk</button>
-        </div>
-        <input id="modal-duration" type="number" step="15" min="0" class="mt-2 w-full bg-[#fbfaf8] border border-[#e5e2da] rounded-lg p-2 text-xs text-center font-bold focus:outline-none focus:border-blue-500" placeholder="Özel Dakika">
-      </div>
-
-      <div>
-        <label class="text-[11px] font-semibold text-slate-500 uppercase">Yapılan İş / Kapsam</label>
-        <input id="modal-subtopic" type="text" placeholder="Örn: Metot yazımı, veri analizi..." class="mt-1 w-full bg-[#fbfaf8] border border-[#e5e2da] rounded-lg p-2 text-xs text-slate-800 focus:outline-none focus:border-blue-500">
-      </div>
-
-      <div class="flex gap-2 justify-end mt-2">
-        <button onclick="deleteCurrentLog()" id="btn-delete-log" class="px-3 py-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-xl text-xs font-semibold transition hidden">Sil</button>
-        <button onclick="saveCurrentLog()" class="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-semibold transition">Kaydet</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- MODAL: AI DANIŞMAN SOHBETİ -->
-  <div id="ai-chat-modal" class="fixed inset-0 bg-slate-900/30 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
-    <div class="bg-white border border-[#e5e2da] rounded-2xl w-full max-w-lg flex flex-col h-[70vh] shadow-2xl overflow-hidden">
-      <div class="flex justify-between items-center bg-[#fbfaf8] p-3.5 border-b border-[#e5e2da]">
-        <div class="flex items-center gap-2">
-          <div class="w-6 h-6 rounded-lg bg-blue-600 text-white flex items-center justify-center text-xs font-bold">⚡</div>
-          <h3 class="text-xs font-bold text-slate-800">FocoDesk Danışmanı</h3>
-        </div>
-        <button onclick="toggleChatModal()" class="text-slate-400 hover:text-slate-600"><i class="fas fa-xmark"></i></button>
-      </div>
-
-      <div id="chat-messages" class="flex-1 p-4 overflow-y-auto custom-scroll flex flex-col gap-3 text-xs">
-        <div class="bg-slate-100 self-start p-3 rounded-2xl max-w-[85%] text-slate-700">
-          Merhaba! Çalışma masandaki tüm kayıtları görebiliyorum. Çalışma ritmin veya hedeflerinle ilgili ne sormak istersin?
-        </div>
-      </div>
-
-      <div class="p-3 bg-[#fbfaf8] border-t border-[#e5e2da] flex gap-2">
-        <textarea id="chat-input" rows="2" placeholder="Sorunu yazıp Enter'a bas..." class="flex-1 bg-white border border-[#e5e2da] rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-blue-500 resize-none" onkeydown="handleChatKeyDown(event)"></textarea>
-        <button onclick="sendChatMessage()" class="px-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold transition"><i class="fas fa-paper-plane"></i></button>
-      </div>
-    </div>
-  </div>
-
-  <!-- MODAL: AYARLAR -->
-  <div id="config-modal" class="fixed inset-0 bg-slate-900/30 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
-    <div class="bg-white border border-[#e5e2da] rounded-2xl p-5 w-full max-w-sm flex flex-col gap-3 shadow-2xl">
-      <h3 class="text-sm font-bold text-slate-800">AI Ayarları</h3>
-      <div>
-        <label class="text-[11px] font-semibold text-slate-500 uppercase">Gemini API Key</label>
-        <input id="cfg-gemini" type="password" placeholder="AIzaSy..." class="w-full bg-[#fbfaf8] border border-[#e5e2da] rounded-xl p-2 text-xs mt-1 focus:outline-none focus:border-blue-500">
-        <span class="text-[10px] text-slate-400 mt-1 block">aistudio.google.com üzerinden alabilirsiniz.</span>
-      </div>
-      <div class="flex justify-end gap-2 mt-2">
-        <button onclick="toggleConfigModal()" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold">Kapat</button>
-        <button onclick="saveConfigurations()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-semibold">Kaydet</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- JAVASCRIPT ÇEKİRDEK KODLARI -->
-  <script>
-    const SUPABASE_URL = "https://mssjazycznwxnqhxrbuv.supabase.co";
+const SUPABASE_URL = "https://mssjazycznwxnqhxrbuv.supabase.co";
     const SUPABASE_ANON_KEY = "sb_publishable_iO5wNMRbtTnq7LttphegXA_zXB6rgaP";
 
     let state = {
@@ -219,22 +26,30 @@
       return dates;
     }
 
-    window.onload = function() {
+    function initApp() {
       displayCurrentDate();
       populateHabitSelect();
       loadLocalState();
       initSupabase();
       renderAll();
-    };
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initApp);
+    } else {
+      initApp();
+    }
 
     function displayCurrentDate() {
       const d = new Date();
       const options = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
-      document.getElementById('current-date-label').innerText = d.toLocaleDateString('tr-TR', options);
+      const el = document.getElementById('current-date-label');
+      if (el) el.innerText = d.toLocaleDateString('tr-TR', options);
     }
 
     function populateHabitSelect() {
       const sel = document.getElementById('habit-select');
+      if (!sel) return;
       sel.innerHTML = state.habits.map(h => `<option value="${h.id}">${h.title}</option>`).join('');
       sel.value = state.activeHabitId;
     }
@@ -246,9 +61,13 @@
 
     function loadLocalState() {
       const savedLogs = localStorage.getItem('sumen_logs');
-      if (savedLogs) state.logs = JSON.parse(savedLogs);
+      if (savedLogs) {
+        try { state.logs = JSON.parse(savedLogs); } catch(e){}
+      }
       const savedTasks = localStorage.getItem('sumen_tasks');
-      if (savedTasks) state.tasks = JSON.parse(savedTasks);
+      if (savedTasks) {
+        try { state.tasks = JSON.parse(savedTasks); } catch(e){}
+      }
     }
 
     function initSupabase() {
@@ -262,7 +81,7 @@
       if (!state.supabaseClient) return;
       const { data: { session } } = await state.supabaseClient.auth.getSession();
       const authBtn = document.getElementById('auth-btn');
-      if (session) {
+      if (session && authBtn) {
         authBtn.innerHTML = `<i class="fas fa-user-check text-emerald-600"></i> ${session.user.email.split('@')[0]}`;
         authBtn.classList.replace('bg-slate-100', 'bg-emerald-50');
         pullCloudData();
@@ -318,18 +137,20 @@
 
       const hours = Math.floor(totalMins / 60);
       const mins = totalMins % 60;
-      document.getElementById('metric-total-time').innerText = `${hours} sa ${mins} dk`;
-      document.getElementById('metric-streak').innerText = `${activeDays} Gün`;
+      const timeEl = document.getElementById('metric-total-time');
+      const streakEl = document.getElementById('metric-streak');
+      const doneEl = document.getElementById('metric-completed-tasks');
+      const rhythmEl = document.getElementById('metric-rhythm');
 
-      const doneTasks = state.tasks.filter(t => t.done).length;
-      document.getElementById('metric-completed-tasks').innerText = `${doneTasks} Adet`;
-
-      const rhythm = Math.round((activeDays / 30) * 100);
-      document.getElementById('metric-rhythm').innerText = `%${rhythm}`;
+      if (timeEl) timeEl.innerText = `${hours} sa ${mins} dk`;
+      if (streakEl) streakEl.innerText = `${activeDays} Gün`;
+      if (doneEl) doneEl.innerText = `${state.tasks.filter(t => t.done).length} Adet`;
+      if (rhythmEl) rhythmEl.innerText = `%${Math.round((activeDays / 30) * 100)}`;
     }
 
     function renderCalendar() {
       const grid = document.getElementById('calendar-grid');
+      if (!grid) return;
       grid.innerHTML = '';
       const days = getLast30Days();
 
@@ -364,7 +185,7 @@
               <span>${dayNum}</span>
               <span class="text-[9px] font-mono opacity-60">${d.slice(5)}</span>
             </div>
-            <div class="flex flex-col gap-0.5 items-start">
+            <div class="flex flex-col gap-0.5 items-start w-full">
               ${badgeHtml}
             </div>
           </div>
@@ -374,6 +195,7 @@
 
     function renderHabitHistory() {
       const list = document.getElementById('habit-history-list');
+      if (!list) return;
       list.innerHTML = '';
       const days = getLast30Days().reverse();
 
@@ -393,7 +215,7 @@
       });
 
       if (!hasItems) {
-        list.innerHTML = `<span class="text-xs text-slate-400">Bu göreve ait kayıt yok.</span>`;
+        list.innerHTML = `<span class="text-xs text-slate-400">Bu alana ait kayıt yok.</span>`;
       }
     }
 
@@ -468,7 +290,7 @@
 
     function addTask() {
       const input = document.getElementById('input-task');
-      if (!input.value.trim()) return;
+      if (!input || !input.value.trim()) return;
       const newTask = { id: Date.now().toString(), text: input.value.trim(), done: false };
       state.tasks.push(newTask);
       localStorage.setItem('sumen_tasks', JSON.stringify(state.tasks));
@@ -516,8 +338,10 @@
 
     function renderTasks() {
       const list = document.getElementById('list-tasks');
+      const badge = document.getElementById('task-badge');
+      if (!list) return;
       list.innerHTML = '';
-      document.getElementById('task-badge').innerText = `${state.tasks.length} Adet`;
+      if (badge) badge.innerText = `${state.tasks.length} Adet`;
 
       state.tasks.forEach(t => {
         list.innerHTML += `
@@ -532,13 +356,13 @@
       });
     }
 
-    // AI ASİSTAN FONKSİYONLARI
     function toggleChatModal() {
       const m = document.getElementById('ai-chat-modal');
+      if (!m) return;
       m.classList.toggle('hidden');
       m.classList.toggle('flex');
       if (!m.classList.contains('hidden')) {
-        setTimeout(() => document.getElementById('chat-input').focus(), 100);
+        setTimeout(() => document.getElementById('chat-input')?.focus(), 100);
       }
     }
 
@@ -551,6 +375,7 @@
 
     async function sendChatMessage() {
       const input = document.getElementById('chat-input');
+      if (!input) return;
       const text = input.value.trim();
       if (!text) return;
 
@@ -585,28 +410,24 @@
       };
 
       const systemPrompt = `Sen FocoDesk akıllı akademik danışmanısın. Kullanıcı verileri: ${JSON.stringify(focoVerileri)}. Samimi ve net Türkçe yanıt ver.`;
-
       let replyText = null;
-      const modelsToTry = ['gemini-2.5-flash', 'gemini-1.5-flash'];
 
-      for (const m of modelsToTry) {
-        try {
-          const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${geminiKey}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [{ role: 'user', parts: [{ text: `${systemPrompt}\n\nSoru: ${text}` }] }]
-            })
-          });
-
-          const data = await res.json();
-          if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
-            replyText = data.candidates[0].content.parts[0].text;
-            break;
-          }
-        } catch (e) {
-          replyText = `Bağlantı Hatası: ${e.message}`;
+      try {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ role: 'user', parts: [{ text: `${systemPrompt}\n\nSoru: ${text}` }] }]
+          })
+        });
+        const data = await res.json();
+        if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
+          replyText = data.candidates[0].content.parts[0].text;
+        } else if (data.error) {
+          replyText = `API Hatası: ${data.error.message}`;
         }
+      } catch (e) {
+        replyText = `Bağlantı Hatası: ${e.message}`;
       }
 
       const loaderEl = document.getElementById(loadingId);
@@ -622,19 +443,19 @@
 
     function toggleConfigModal() {
       const m = document.getElementById('config-modal');
+      if (!m) return;
       m.classList.toggle('hidden');
       m.classList.toggle('flex');
-      document.getElementById('cfg-gemini').value = localStorage.getItem('gemini_api_key') || '';
+      const input = document.getElementById('cfg-gemini');
+      if (input) input.value = localStorage.getItem('gemini_api_key') || '';
     }
 
     function saveConfigurations() {
-      const g = document.getElementById('cfg-gemini').value.trim();
+      const input = document.getElementById('cfg-gemini');
+      const g = input ? input.value.trim() : '';
       if (g) {
         localStorage.setItem('gemini_api_key', g);
         alert("Gemini API Anahtarı kaydedildi!");
       }
       toggleConfigModal();
     }
-  </script>
-</body>
-</html>
