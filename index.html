@@ -1,174 +1,289 @@
 <!DOCTYPE html>
-<html lang="tr">
+<html lang="tr" data-theme="dark" class="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>FocoDesk | Çalışma Masası</title>
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('foco_theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', t);
+        document.documentElement.classList.toggle('dark', t === 'dark');
+      } catch (e) {}
+    })();
+  </script>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config = { darkMode: 'class' };</script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
-    body { background-color: #f7f6f2; color: #1e293b; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    :root[data-theme="dark"] {
+      --bg: #121316;
+      --card: #1a1c23;
+      --border: #2d3139;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --input: #14161c;
+      --hover: #22252e;
+      --soft: rgba(255,255,255,0.04);
+    }
+    :root[data-theme="light"] {
+      --bg: #f7f6f2;
+      --card: #ffffff;
+      --border: #e5e2da;
+      --text: #1e293b;
+      --muted: #64748b;
+      --input: #fbfaf8;
+      --hover: #f1eee8;
+      --soft: rgba(15,23,42,0.03);
+    }
+    * { box-sizing: border-box; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    .card { background: var(--card); border: 1px solid var(--border); }
+    .field {
+      background: var(--input);
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+    .field::placeholder { color: var(--muted); }
+    .muted { color: var(--muted); }
+    .ghost:hover { background: var(--hover); }
     .custom-scroll::-webkit-scrollbar { width: 5px; height: 5px; }
-    .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    .custom-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
     .custom-scroll::-webkit-scrollbar-track { background: transparent; }
+    #left-panel { width: var(--left-w, 300px); min-width: var(--left-w, 300px); }
+    #left-panel.w-compact { --left-w: 240px; }
+    #left-panel.w-standard { --left-w: 300px; }
+    #left-panel.w-wide { --left-w: 380px; }
+    #calendar-grid.cell-compact .cal-cell { min-height: 64px; }
+    #calendar-grid.cell-normal .cal-cell { min-height: 88px; }
+    #calendar-grid.cell-wide .cal-cell { min-height: 118px; }
+    .cal-cell {
+      position: relative;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      background: var(--input);
+    }
+    .cal-slices { position: absolute; inset: 0; display: flex; }
+    .cal-slice { flex: 1; min-width: 0; transition: filter .15s ease, opacity .15s ease; }
+    .cal-slice:hover { filter: brightness(1.18); }
+    .cal-day {
+      position: relative;
+      z-index: 1;
+      pointer-events: none;
+      text-shadow: 0 1px 8px rgba(0,0,0,.35);
+    }
+    .seg-btn.active { background: #3b82f6; color: #fff; border-color: #3b82f6; }
+    .area-item.active { background: var(--hover); box-shadow: inset 3px 0 0 var(--area-color, #3b82f6); }
+    @media (max-width: 1023px) {
+      #left-panel { width: 100% !important; min-width: 0 !important; }
+    }
   </style>
 </head>
-<body class="min-h-screen p-3 md:p-6 flex flex-col gap-5">
+<body class="min-h-screen p-3 md:p-5 flex flex-col gap-4">
 
-  <header class="flex items-center justify-between bg-white border border-[#e5e2da] rounded-2xl px-5 py-3 shadow-[0_2px_8px_rgba(0,0,0,0.03)]">
+  <header class="card rounded-2xl px-4 py-3 flex flex-wrap items-center justify-between gap-3">
     <div class="flex items-center gap-3">
-      <div class="w-8 h-8 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-600 font-black text-sm">⚡</div>
+      <div class="w-8 h-8 rounded-xl bg-blue-500/15 flex items-center justify-center text-blue-400 font-black text-sm">⚡</div>
       <div>
-        <h1 class="text-base font-bold tracking-tight text-slate-800">FocoDesk</h1>
-        <p id="current-date-label" class="text-xs text-slate-400 font-medium"></p>
+        <h1 class="text-base font-bold tracking-tight">FocoDesk</h1>
+        <p id="live-clock" class="text-[11px] muted font-medium tabular-nums">—</p>
       </div>
     </div>
-    <div class="flex items-center gap-2">
-      <button id="auth-btn" onclick="handleAuthClick()" class="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition flex items-center gap-1.5">
-        <i class="fab fa-google text-slate-500"></i> Google ile Giriş
+
+    <div class="flex items-center gap-2 flex-wrap">
+      <div class="flex items-center gap-2 field rounded-xl px-2.5 py-1.5">
+        <i id="weather-icon" class="fas fa-cloud-sun text-amber-400 text-xs"></i>
+        <span id="weather-temp" class="text-xs font-bold tabular-nums">--°C</span>
+        <select id="city-select" onchange="changeCity(this.value)" class="bg-transparent text-xs font-semibold focus:outline-none muted">
+          <option value="sivas">Sivas</option>
+          <option value="ankara">Ankara</option>
+          <option value="istanbul">İstanbul</option>
+          <option value="izmir">İzmir</option>
+          <option value="aveiro">Aveiro</option>
+          <option value="eskisehir">Eskişehir</option>
+        </select>
+      </div>
+
+      <button id="auth-btn" onclick="handleAuthClick()" class="px-3 py-1.5 rounded-xl text-xs font-semibold transition ghost border border-[var(--border)] flex items-center gap-1.5">
+        <i class="fab fa-google text-slate-400"></i> Google ile Giriş
       </button>
-      <button onclick="toggleConfigModal()" title="AI Ayarları" class="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition">
+      <button onclick="toggleTheme()" id="theme-btn" title="Tema" class="w-8 h-8 rounded-xl ghost border border-[var(--border)] flex items-center justify-center">
+        <i class="fas fa-sun text-xs"></i>
+      </button>
+      <button onclick="toggleConfigModal()" title="AI Ayarları" class="w-8 h-8 rounded-xl ghost border border-[var(--border)] flex items-center justify-center muted">
         <i class="fas fa-gear text-sm"></i>
       </button>
     </div>
   </header>
 
-  <main class="grid grid-cols-1 lg:grid-cols-12 gap-5 flex-1">
-    <div class="lg:col-span-4 flex flex-col gap-4">
-      <section class="bg-white border border-[#e5e2da] rounded-2xl p-4 shadow-[0_2px_8px_rgba(0,0,0,0.03)] flex flex-col gap-3">
+  <div class="flex flex-wrap items-center justify-between gap-2 px-1">
+    <div class="flex items-center gap-2 text-[11px]">
+      <span class="muted font-semibold uppercase tracking-wider">Sol panel</span>
+      <div class="flex rounded-lg overflow-hidden border border-[var(--border)]">
+        <button class="seg-btn px-2 py-1 font-semibold" data-left="compact" onclick="setLeftWidth('compact')">Kompakt</button>
+        <button class="seg-btn px-2 py-1 font-semibold" data-left="standard" onclick="setLeftWidth('standard')">Standart</button>
+        <button class="seg-btn px-2 py-1 font-semibold" data-left="wide" onclick="setLeftWidth('wide')">Geniş</button>
+      </div>
+    </div>
+    <div class="flex items-center gap-2 text-[11px]">
+      <span class="muted font-semibold uppercase tracking-wider">Takvim hücresi</span>
+      <div class="flex rounded-lg overflow-hidden border border-[var(--border)]">
+        <button class="seg-btn px-2 py-1 font-semibold" data-cell="compact" onclick="setCellSize('compact')">Kompakt</button>
+        <button class="seg-btn px-2 py-1 font-semibold" data-cell="normal" onclick="setCellSize('normal')">Normal</button>
+        <button class="seg-btn px-2 py-1 font-semibold" data-cell="wide" onclick="setCellSize('wide')">Geniş</button>
+      </div>
+    </div>
+  </div>
+
+  <main class="flex flex-col lg:flex-row gap-4 flex-1 min-h-0">
+    <aside id="left-panel" class="w-standard flex flex-col gap-3">
+      <section class="card rounded-2xl p-3.5 flex flex-col gap-2">
         <div class="flex items-center justify-between">
-          <span class="text-xs font-bold text-slate-700 uppercase tracking-wider">Kısa Vadeli İşler</span>
-          <span id="task-badge" class="text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-medium">0 Adet</span>
+          <span class="text-[11px] font-bold uppercase tracking-wider muted">Ana Odak Alanları</span>
+          <button onclick="addArea()" class="text-[11px] font-semibold px-2 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white">+ Yeni Alan</button>
+        </div>
+        <ul id="area-list" class="flex flex-col gap-1 max-h-44 overflow-y-auto custom-scroll"></ul>
+      </section>
+
+      <section class="card rounded-2xl p-3.5 flex flex-col gap-2">
+        <div class="flex items-center justify-between">
+          <span class="text-[11px] font-bold uppercase tracking-wider muted">Alt Görevler</span>
+          <span id="subtask-area-label" class="text-[10px] muted truncate max-w-[140px]"></span>
         </div>
         <div class="flex gap-2">
-          <input id="input-task" type="text" placeholder="Görev veya not yaz..." class="flex-1 bg-[#fbfaf8] border border-[#e5e2da] rounded-xl px-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500">
-          <button onclick="addTask()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-semibold transition">+</button>
+          <input id="input-subtask" type="text" placeholder="Alt görev ekle..." class="field flex-1 rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:border-blue-500" onkeydown="if(event.key==='Enter')addSubtask()">
+          <button onclick="addSubtask()" class="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded-xl text-xs font-semibold">+</button>
         </div>
-        <ul id="list-tasks" class="flex flex-col gap-1.5 max-h-48 overflow-y-auto custom-scroll pr-1"></ul>
+        <ul id="subtask-list" class="flex flex-col gap-1 max-h-40 overflow-y-auto custom-scroll"></ul>
       </section>
 
-      <section class="bg-white border border-[#e5e2da] rounded-2xl p-4 shadow-[0_2px_8px_rgba(0,0,0,0.03)] flex-1 flex flex-col gap-3">
-        <div class="flex items-center justify-between">
-          <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Seçilen Görev</span>
-          <select id="habit-select" onchange="changeHabit(this.value)" class="text-xs font-bold bg-[#fbfaf8] border border-[#e5e2da] rounded-lg px-2 py-1 text-slate-800 focus:outline-none"></select>
-        </div>
-        <div class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider pt-2 border-t border-slate-100">Bu Alanın Son Kayıtları</div>
-        <ul id="habit-history-list" class="flex flex-col gap-1.5 max-h-72 overflow-y-auto custom-scroll pr-1 flex-1"></ul>
+      <section class="card rounded-2xl p-3.5 flex-1 flex flex-col gap-2 min-h-[160px]">
+        <span class="text-[11px] font-bold uppercase tracking-wider muted">Özel Notlar</span>
+        <textarea id="area-notes" placeholder="Bu alana ait notlarını yaz... Markdown serbest." class="field flex-1 rounded-xl px-3 py-2 text-xs resize-none focus:outline-none focus:border-blue-500 custom-scroll min-h-[120px]" oninput="queueNoteSave()"></textarea>
+        <span id="notes-status" class="text-[10px] muted">Otomatik kayıt</span>
       </section>
-    </div>
+    </aside>
 
-    <div class="lg:col-span-8 flex flex-col gap-4 min-h-0">
-      <section class="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div class="bg-white border border-[#e5e2da] rounded-2xl p-3.5 shadow-[0_2px_8px_rgba(0,0,0,0.03)]">
-          <span class="text-[11px] font-semibold text-slate-400 uppercase">Toplam Odak</span>
-          <p id="metric-total-time" class="text-lg font-bold text-slate-800 mt-1">0 sa 0 dk</p>
+    <section class="flex-1 flex flex-col gap-3 min-w-0">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div class="card rounded-2xl p-3.5">
+          <span class="text-[11px] font-semibold muted uppercase">Toplam Odak</span>
+          <p id="metric-total-time" class="text-lg font-bold mt-1">0 sa 0 dk</p>
         </div>
-        <div class="bg-white border border-[#e5e2da] rounded-2xl p-3.5 shadow-[0_2px_8px_rgba(0,0,0,0.03)]">
-          <span class="text-[11px] font-semibold text-slate-400 uppercase">Aktif Zincir</span>
-          <p id="metric-streak" class="text-lg font-bold text-emerald-600 mt-1">0 Gün</p>
+        <div class="card rounded-2xl p-3.5">
+          <span class="text-[11px] font-semibold muted uppercase">Aktif Zincir</span>
+          <p id="metric-streak" class="text-lg font-bold text-emerald-400 mt-1">0 Gün</p>
         </div>
-        <div class="bg-white border border-[#e5e2da] rounded-2xl p-3.5 shadow-[0_2px_8px_rgba(0,0,0,0.03)]">
-          <span class="text-[11px] font-semibold text-slate-400 uppercase">Tamamlanan</span>
-          <p id="metric-completed-tasks" class="text-lg font-bold text-slate-800 mt-1">0 Adet</p>
+        <div class="card rounded-2xl p-3.5">
+          <span class="text-[11px] font-semibold muted uppercase">Alt Görev</span>
+          <p id="metric-subtasks" class="text-lg font-bold mt-1">0 Adet</p>
         </div>
-        <div class="bg-white border border-[#e5e2da] rounded-2xl p-3.5 shadow-[0_2px_8px_rgba(0,0,0,0.03)]">
-          <span class="text-[11px] font-semibold text-slate-400 uppercase">Çalışma Ritmi</span>
-          <p id="metric-rhythm" class="text-lg font-bold text-blue-600 mt-1">%0</p>
+        <div class="card rounded-2xl p-3.5">
+          <span class="text-[11px] font-semibold muted uppercase">Çalışma Ritmi</span>
+          <p id="metric-rhythm" class="text-lg font-bold text-blue-400 mt-1">%0</p>
         </div>
-      </section>
+      </div>
 
-      <section class="bg-white border border-[#e5e2da] rounded-2xl p-5 shadow-[0_2px_8px_rgba(0,0,0,0.03)] flex flex-col gap-4 flex-1">
-        <div class="flex items-center justify-between gap-3">
+      <div class="card rounded-2xl p-4 flex flex-col gap-3 flex-1">
+        <div class="flex items-center justify-between gap-3 flex-wrap">
           <div>
-            <h2 class="text-sm font-bold text-slate-800">30 Günlük Zincir & Isı Haritası</h2>
-            <p class="text-xs text-slate-400">Çalışma süresine göre renk tonu yoğunlaşır</p>
+            <h2 class="text-sm font-bold">30 Günlük Çok Dilimli Isı Haritası</h2>
+            <p class="text-xs muted">Her şerit bir ana alanı temsil eder</p>
           </div>
-          <div class="flex items-center gap-1.5 text-[11px] text-slate-400 shrink-0">
-            <span>Az</span>
-            <div class="w-2.5 h-2.5 rounded bg-blue-100"></div>
-            <div class="w-2.5 h-2.5 rounded bg-blue-300"></div>
-            <div class="w-2.5 h-2.5 rounded bg-blue-500"></div>
-            <div class="w-2.5 h-2.5 rounded bg-blue-700"></div>
-            <span>Yoğun</span>
-          </div>
+          <div id="legend" class="flex flex-wrap items-center gap-2 text-[11px] muted"></div>
         </div>
-
-        <div id="calendar-grid" class="grid grid-cols-5 md:grid-cols-6 gap-2 flex-1"></div>
-      </section>
-    </div>
+        <div id="calendar-grid" class="grid grid-cols-5 md:grid-cols-6 gap-2 cell-normal"></div>
+      </div>
+    </section>
   </main>
 
-  <button onclick="toggleChatModal()" class="fixed bottom-6 right-6 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-full shadow-xl flex items-center gap-2 text-xs font-semibold transition hover:scale-105">
-    <i class="fas fa-sparkles text-amber-400"></i> Gemini'a Sor
+  <button onclick="toggleChatModal()" class="fixed bottom-6 right-6 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-full shadow-xl flex items-center gap-2 text-xs font-semibold transition hover:scale-105 z-40">
+    <i class="fas fa-sparkles text-amber-300"></i> Gemini'a Sor
   </button>
 
-  <div id="log-modal" class="fixed inset-0 bg-slate-900/30 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
-    <div class="bg-white border border-[#e5e2da] rounded-2xl p-5 w-full max-w-sm flex flex-col gap-3 shadow-2xl">
+  <div id="log-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+    <div class="card rounded-2xl p-5 w-full max-w-sm flex flex-col gap-3 shadow-2xl">
       <div class="flex justify-between items-center">
         <div>
-          <h3 id="modal-habit-title" class="text-sm font-bold text-slate-800">Kayıt Ekle</h3>
-          <p id="modal-date-label" class="text-xs text-slate-400"></p>
+          <h3 id="log-modal-title" class="text-sm font-bold">Çalışma Kaydı</h3>
+          <p id="log-modal-sub" class="text-xs muted"></p>
         </div>
-        <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600"><i class="fas fa-xmark"></i></button>
+        <button onclick="closeModal('log-modal')" class="muted hover:text-[var(--text)]"><i class="fas fa-xmark"></i></button>
       </div>
-
       <div>
-        <label class="text-[11px] font-semibold text-slate-500 uppercase">Süre (Dakika)</label>
+        <label class="text-[11px] font-semibold muted uppercase">Süre</label>
         <div class="grid grid-cols-4 gap-1.5 mt-1">
-          <button type="button" onclick="setMinutes(15)" class="py-1 bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-600 rounded-lg text-xs font-bold transition">15 dk</button>
-          <button type="button" onclick="setMinutes(30)" class="py-1 bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-600 rounded-lg text-xs font-bold transition">30 dk</button>
-          <button type="button" onclick="setMinutes(45)" class="py-1 bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-600 rounded-lg text-xs font-bold transition">45 dk</button>
-          <button type="button" onclick="setMinutes(60)" class="py-1 bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-600 rounded-lg text-xs font-bold transition">60 dk</button>
+          <button type="button" onclick="setLogMinutes(15)" class="py-1 ghost border border-[var(--border)] rounded-lg text-xs font-bold">15 dk</button>
+          <button type="button" onclick="setLogMinutes(30)" class="py-1 ghost border border-[var(--border)] rounded-lg text-xs font-bold">30 dk</button>
+          <button type="button" onclick="setLogMinutes(60)" class="py-1 ghost border border-[var(--border)] rounded-lg text-xs font-bold">1 sa</button>
+          <button type="button" onclick="setLogMinutes(120)" class="py-1 ghost border border-[var(--border)] rounded-lg text-xs font-bold">2 sa</button>
         </div>
-        <input id="modal-duration" type="number" step="15" min="0" class="mt-2 w-full bg-[#fbfaf8] border border-[#e5e2da] rounded-lg p-2 text-xs text-center font-bold focus:outline-none focus:border-blue-500" placeholder="Özel Dakika">
+        <div class="grid grid-cols-2 gap-2 mt-2">
+          <input id="log-hours" type="number" min="0" step="1" placeholder="Saat" class="field rounded-lg p-2 text-xs text-center font-bold focus:outline-none focus:border-blue-500">
+          <input id="log-minutes" type="number" min="0" step="5" placeholder="Dakika" class="field rounded-lg p-2 text-xs text-center font-bold focus:outline-none focus:border-blue-500">
+        </div>
       </div>
-
       <div>
-        <label class="text-[11px] font-semibold text-slate-500 uppercase">Yapılan İş / Kapsam</label>
-        <input id="modal-subtopic" type="text" placeholder="Örn: Metot yazımı, veri analizi..." class="mt-1 w-full bg-[#fbfaf8] border border-[#e5e2da] rounded-lg p-2 text-xs text-slate-800 focus:outline-none focus:border-blue-500">
+        <label class="text-[11px] font-semibold muted uppercase">Açıklama</label>
+        <input id="log-note" type="text" placeholder="Ne üzerinde çalıştın?" class="mt-1 w-full field rounded-lg p-2 text-xs focus:outline-none focus:border-blue-500">
       </div>
-
-      <div class="flex gap-2 justify-end mt-2">
-        <button onclick="deleteCurrentLog()" id="btn-delete-log" class="px-3 py-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-xl text-xs font-semibold transition hidden">Sil</button>
-        <button onclick="saveCurrentLog()" class="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-semibold transition">Kaydet</button>
+      <div class="flex justify-end gap-2 mt-1">
+        <button onclick="closeModal('log-modal')" class="px-3 py-1.5 ghost border border-[var(--border)] rounded-xl text-xs font-semibold">Vazgeç</button>
+        <button onclick="saveSubtaskLog()" class="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-semibold">Kaydet</button>
       </div>
     </div>
   </div>
 
-  <div id="ai-chat-modal" class="fixed inset-0 bg-slate-900/30 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
-    <div class="bg-white border border-[#e5e2da] rounded-2xl w-full max-w-lg flex flex-col h-[70vh] shadow-2xl overflow-hidden">
-      <div class="flex justify-between items-center bg-[#fbfaf8] p-3.5 border-b border-[#e5e2da]">
+  <div id="day-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+    <div class="card rounded-2xl p-5 w-full max-w-md flex flex-col gap-3 shadow-2xl max-h-[80vh]">
+      <div class="flex justify-between items-center">
+        <div>
+          <h3 class="text-sm font-bold">Gün Detayı</h3>
+          <p id="day-modal-date" class="text-xs muted"></p>
+        </div>
+        <button onclick="closeModal('day-modal')" class="muted hover:text-[var(--text)]"><i class="fas fa-xmark"></i></button>
+      </div>
+      <ul id="day-modal-list" class="flex flex-col gap-1.5 overflow-y-auto custom-scroll"></ul>
+    </div>
+  </div>
+
+  <div id="ai-chat-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+    <div class="card rounded-2xl w-full max-w-lg flex flex-col h-[70vh] shadow-2xl overflow-hidden">
+      <div class="flex justify-between items-center p-3.5 border-b border-[var(--border)]" style="background:var(--soft)">
         <div class="flex items-center gap-2">
           <div class="w-6 h-6 rounded-lg bg-blue-600 text-white flex items-center justify-center text-xs font-bold">⚡</div>
-          <h3 class="text-xs font-bold text-slate-800">FocoDesk Danışmanı</h3>
+          <h3 class="text-xs font-bold">FocoDesk Danışmanı</h3>
         </div>
-        <button onclick="toggleChatModal()" class="text-slate-400 hover:text-slate-600"><i class="fas fa-xmark"></i></button>
+        <button onclick="toggleChatModal()" class="muted"><i class="fas fa-xmark"></i></button>
       </div>
-
       <div id="chat-messages" class="flex-1 p-4 overflow-y-auto custom-scroll flex flex-col gap-3 text-xs">
-        <div class="bg-slate-100 self-start p-3 rounded-2xl max-w-[85%] text-slate-700">
-          Merhaba! Çalışma masandaki tüm kayıtları görebiliyorum. Çalışma ritmin veya hedeflerinle ilgili ne sormak istersin?
+        <div class="self-start p-3 rounded-2xl max-w-[85%]" style="background:var(--hover)">
+          Merhaba! Alanlarını, alt görevlerini ve çalışma kayıtlarını görebiliyorum. Ne sormak istersin?
         </div>
       </div>
-
-      <div class="p-3 bg-[#fbfaf8] border-t border-[#e5e2da] flex gap-2">
-        <textarea id="chat-input" rows="2" placeholder="Sorunu yazıp Enter'a bas..." class="flex-1 bg-white border border-[#e5e2da] rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-blue-500 resize-none" onkeydown="handleChatKeyDown(event)"></textarea>
-        <button onclick="sendChatMessage()" class="px-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold transition"><i class="fas fa-paper-plane"></i></button>
+      <div class="p-3 border-t border-[var(--border)] flex gap-2" style="background:var(--soft)">
+        <textarea id="chat-input" rows="2" placeholder="Sorunu yazıp Enter'a bas..." class="flex-1 field rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-blue-500 resize-none" onkeydown="handleChatKeyDown(event)"></textarea>
+        <button onclick="sendChatMessage()" class="px-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-semibold"><i class="fas fa-paper-plane"></i></button>
       </div>
     </div>
   </div>
 
-  <div id="config-modal" class="fixed inset-0 bg-slate-900/30 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
-    <div class="bg-white border border-[#e5e2da] rounded-2xl p-5 w-full max-w-sm flex flex-col gap-3 shadow-2xl">
-      <h3 class="text-sm font-bold text-slate-800">AI Ayarları</h3>
+  <div id="config-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+    <div class="card rounded-2xl p-5 w-full max-w-sm flex flex-col gap-3 shadow-2xl">
+      <h3 class="text-sm font-bold">AI Ayarları</h3>
       <div>
-        <label class="text-[11px] font-semibold text-slate-500 uppercase">Gemini API Key</label>
-        <input id="cfg-gemini" type="password" placeholder="AIzaSy..." class="w-full bg-[#fbfaf8] border border-[#e5e2da] rounded-xl p-2 text-xs mt-1 focus:outline-none focus:border-blue-500">
-        <span class="text-[10px] text-slate-400 mt-1 block">aistudio.google.com üzerinden alabilirsiniz.</span>
+        <label class="text-[11px] font-semibold muted uppercase">Gemini API Key</label>
+        <input id="cfg-gemini" type="password" placeholder="AIzaSy..." class="w-full field rounded-xl p-2 text-xs mt-1 focus:outline-none focus:border-blue-500">
+        <span class="text-[10px] muted mt-1 block">aistudio.google.com üzerinden alabilirsiniz.</span>
       </div>
       <div class="flex justify-end gap-2 mt-2">
-        <button onclick="toggleConfigModal()" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold">Kapat</button>
+        <button onclick="toggleConfigModal()" class="px-3 py-1.5 ghost border border-[var(--border)] rounded-xl text-xs font-semibold">Kapat</button>
         <button onclick="saveConfigurations()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-semibold">Kaydet</button>
       </div>
     </div>
@@ -177,437 +292,659 @@
   <script>
     const SUPABASE_URL = "https://mssjazycznwxnqhxrbuv.supabase.co";
     const SUPABASE_ANON_KEY = "sb_publishable_iO5wNMRbtTnq7LttphegXA_zXB6rgaP";
+    const STORE_KEY = "foco_v2";
+    const PALETTE = [
+      { id: "violet", hex: "#8b5cf6", label: "Mor" },
+      { id: "emerald", hex: "#10b981", label: "Zümrüt" },
+      { id: "orange", hex: "#f97316", label: "Turuncu" },
+      { id: "blue", hex: "#3b82f6", label: "Mavi" },
+      { id: "rose", hex: "#f43f5e", label: "Gül" },
+      { id: "cyan", hex: "#06b6d4", label: "Camgöbeği" },
+      { id: "amber", hex: "#f59e0b", label: "Kehribar" },
+      { id: "fuchsia", hex: "#d946ef", label: "Fuşya" }
+    ];
+    const CITIES = {
+      sivas: { name: "Sivas", lat: 39.7477, lon: 37.0179 },
+      ankara: { name: "Ankara", lat: 39.9334, lon: 32.8597 },
+      istanbul: { name: "İstanbul", lat: 41.0082, lon: 28.9784 },
+      izmir: { name: "İzmir", lat: 38.4237, lon: 27.1428 },
+      aveiro: { name: "Aveiro", lat: 40.6405, lon: -8.6538 },
+      eskisehir: { name: "Eskişehir", lat: 39.7767, lon: 30.5206 }
+    };
+    const DEFAULT_AREAS = [
+      { id: "tez", title: "Doktora Tezi", color: "#8b5cf6" },
+      { id: "makale", title: "Dergi & Makale", color: "#10b981" },
+      { id: "akreditasyon", title: "Akreditasyon Dosyaları", color: "#f97316" },
+      { id: "okuma", title: "Literatür & Okuma", color: "#3b82f6" }
+    ];
 
     var state = {
-      habits: [
-        { id: "tez", title: "Doktora Tezi" },
-        { id: "makale", title: "Dergi & Makale" },
-        { id: "akreditasyon", title: "Akreditasyon Dosyaları" },
-        { id: "okuma", title: "Literatür & Okuma" }
-      ],
-      activeHabitId: "tez",
-      logs: {},
-      tasks: [],
-      selectedHabit: null,
-      selectedDate: null,
+      areas: [],
+      subtasks: [],
+      notes: {},
+      logs: [],
+      activeAreaId: null,
+      prefs: { theme: "dark", city: "sivas", leftWidth: "standard", cellSize: "normal" },
+      pendingLog: null,
+      noteTimer: null,
       supabaseClient: null
     };
 
+    function uid(prefix) {
+      return (prefix || "id") + "_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    }
+    function esc(s) {
+      return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+        return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+      });
+    }
+    function todayStr() {
+      var d = new Date();
+      return localDate(d);
+    }
+    function localDate(d) {
+      return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+    }
     function getLast30Days() {
       var dates = [];
       for (var i = 29; i >= 0; i--) {
         var d = new Date();
+        d.setHours(12, 0, 0, 0);
         d.setDate(d.getDate() - i);
-        dates.push(d.toISOString().split('T')[0]);
+        dates.push(localDate(d));
       }
       return dates;
     }
-
-    function initApp() {
-      displayCurrentDate();
-      populateHabitSelect();
-      loadLocalState();
-      initSupabase();
-      renderAll();
+    function activeArea() {
+      return state.areas.find(function (a) { return a.id === state.activeAreaId; }) || state.areas[0] || null;
+    }
+    function nextColor() {
+      return PALETTE[state.areas.length % PALETTE.length].hex;
     }
 
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', initApp);
-    } else {
-      initApp();
-    }
-
-    function displayCurrentDate() {
-      var d = new Date();
-      var el = document.getElementById('current-date-label');
-      if (el) el.innerText = d.toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-    }
-
-    function populateHabitSelect() {
-      var sel = document.getElementById('habit-select');
-      if (!sel) return;
-      var html = "";
-      for (var i = 0; i < state.habits.length; i++) {
-        var h = state.habits[i];
-        html += '<option value="' + h.id + '">' + h.title + '</option>';
-      }
-      sel.innerHTML = html;
-      sel.value = state.activeHabitId;
-    }
-
-    function changeHabit(val) {
-      state.activeHabitId = val;
-      renderAll();
+    function persist() {
+      var payload = {
+        areas: state.areas,
+        subtasks: state.subtasks,
+        notes: state.notes,
+        logs: state.logs,
+        activeAreaId: state.activeAreaId,
+        prefs: state.prefs
+      };
+      localStorage.setItem(STORE_KEY, JSON.stringify(payload));
     }
 
     function loadLocalState() {
-      var savedLogs = localStorage.getItem('sumen_logs');
-      if (savedLogs) {
-        try { state.logs = JSON.parse(savedLogs); } catch(e){}
+      var raw = localStorage.getItem(STORE_KEY);
+      if (raw) {
+        try {
+          var data = JSON.parse(raw);
+          state.areas = data.areas || [];
+          state.subtasks = data.subtasks || [];
+          state.notes = data.notes || {};
+          state.logs = data.logs || [];
+          state.activeAreaId = data.activeAreaId;
+          state.prefs = Object.assign(state.prefs, data.prefs || {});
+        } catch (e) {}
       }
-      var savedTasks = localStorage.getItem('sumen_tasks');
-      if (savedTasks) {
-        try { state.tasks = JSON.parse(savedTasks); } catch(e){}
+      migrateLegacy();
+      if (!state.areas.length) {
+        state.areas = DEFAULT_AREAS.slice();
+        state.activeAreaId = state.areas[0].id;
       }
-    }
-
-    function initSupabase() {
-      if (window.supabase) {
-        state.supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-        checkUserSession();
+      if (!state.activeAreaId || !state.areas.some(function (a) { return a.id === state.activeAreaId; })) {
+        state.activeAreaId = state.areas[0].id;
       }
+      var savedTheme = localStorage.getItem("foco_theme");
+      if (savedTheme) state.prefs.theme = savedTheme;
     }
 
-    async function checkUserSession() {
-      if (!state.supabaseClient) return;
-      var res = await state.supabaseClient.auth.getSession();
-      var session = res.data ? res.data.session : null;
-      var authBtn = document.getElementById('auth-btn');
-      if (session && authBtn) {
-        var username = session.user.email ? session.user.email.split('@')[0] : 'Kullanıcı';
-        authBtn.innerHTML = '<i class="fas fa-user-check text-emerald-600"></i> ' + username;
-        authBtn.classList.remove('bg-slate-100');
-        authBtn.classList.add('bg-emerald-50');
-        pullCloudData();
-      }
-    }
-
-    async function handleAuthClick() {
-      if (!state.supabaseClient) return;
-      await state.supabaseClient.auth.signInWithOAuth({
-        provider: 'google',
-        options: { redirectTo: window.location.origin }
-      });
-    }
-
-    async function pullCloudData() {
-      if (!state.supabaseClient) return;
-      var resLogs = await state.supabaseClient.from('habit_logs').select('*');
-      if (resLogs.data) {
-        resLogs.data.forEach(function(l) {
-          state.logs[l.habit_id + '_' + l.log_date] = {
-            minutes: l.duration_minutes,
-            subtopic: l.subtopic,
-            notes: l.notes
-          };
-        });
-      }
-      var resTasks = await state.supabaseClient.from('tasks').select('*');
-      if (resTasks.data) {
-        state.tasks = resTasks.data.map(function(t) {
-          return { id: t.id, text: t.title, done: t.is_completed };
-        });
-      }
-      renderAll();
-    }
-
-    function renderAll() {
-      renderMetrics();
-      renderCalendar();
-      renderTasks();
-      renderHabitHistory();
-    }
-
-    function renderMetrics() {
-      var totalMins = 0;
-      var activeDays = 0;
-      var days = getLast30Days();
-
-      days.forEach(function(d) {
-        var key = state.activeHabitId + '_' + d;
-        if (state.logs[key] && state.logs[key].minutes > 0) {
-          totalMins += state.logs[key].minutes;
-          activeDays++;
-        }
-      });
-
-      var hours = Math.floor(totalMins / 60);
-      var mins = totalMins % 60;
-      var timeEl = document.getElementById('metric-total-time');
-      var streakEl = document.getElementById('metric-streak');
-      var doneEl = document.getElementById('metric-completed-tasks');
-      var rhythmEl = document.getElementById('metric-rhythm');
-
-      if (timeEl) timeEl.innerText = hours + ' sa ' + mins + ' dk';
-      if (streakEl) streakEl.innerText = activeDays + ' Gün';
-      if (doneEl) doneEl.innerText = state.tasks.filter(function(t){ return t.done; }).length + ' Adet';
-      if (rhythmEl) rhythmEl.innerText = '%' + Math.round((activeDays / 30) * 100);
-    }
-
-    function renderCalendar() {
-      var grid = document.getElementById('calendar-grid');
-      if (!grid) return;
-      var days = getLast30Days();
-      var html = "";
-
-      for (var idx = 0; idx < days.length; idx++) {
-        var d = days[idx];
-        var key = state.activeHabitId + '_' + d;
-        var rec = state.logs[key];
-        var dayNum = new Date(d + 'T12:00:00').getDate();
-        var hasLog = rec && rec.minutes > 0;
-
-        var bgClass = "bg-[#fbfaf8] hover:bg-slate-100 border-[#e5e2da]";
-        var textClass = "text-slate-500";
-        var dotClass = "bg-slate-300";
-        var badgeHtml = '<span class="text-[10px] text-slate-300 font-medium">+ Ekle</span>';
-
-        if (hasLog) {
-          var m = rec.minutes;
-          if (m <= 30) {
-            bgClass = "bg-blue-100 border-blue-200 text-blue-900";
-            textClass = "text-blue-900/80";
-            dotClass = "bg-blue-500";
-          } else if (m <= 60) {
-            bgClass = "bg-blue-300 border-blue-400 text-blue-950";
-            textClass = "text-blue-950/80";
-            dotClass = "bg-blue-700";
-          } else if (m <= 90) {
-            bgClass = "bg-blue-500 border-blue-600 text-white";
-            textClass = "text-white/90";
-            dotClass = "bg-white";
-          } else {
-            bgClass = "bg-blue-700 border-blue-800 text-white";
-            textClass = "text-white/90";
-            dotClass = "bg-white";
+    function migrateLegacy() {
+      if (state.areas.length) return;
+      var oldLogs = localStorage.getItem("sumen_logs");
+      var mapped = {};
+      DEFAULT_AREAS.forEach(function (a) { mapped[a.id] = true; });
+      if (!oldLogs) return;
+      try {
+        var logs = JSON.parse(oldLogs);
+        state.areas = DEFAULT_AREAS.slice();
+        Object.keys(logs).forEach(function (key) {
+          var rec = logs[key] || {};
+          var parts = key.split("_");
+          var date = parts.pop();
+          var habitId = parts.join("_");
+          if (!mapped[habitId]) {
+            state.areas.push({ id: habitId, title: habitId, color: nextColor() });
+            mapped[habitId] = true;
           }
-
-          var sub = rec.subtopic ? '<p class="text-[10px] truncate max-w-full opacity-90">' + rec.subtopic + '</p>' : '';
-          badgeHtml = '<span class="text-[11px] font-bold px-1.5 py-0.5 rounded bg-black/15">' + m + ' dk</span>' + sub;
-        }
-
-        html += '<div onclick="openLogModal(\'' + state.activeHabitId + '\', \'' + d + '\')" class="border rounded-xl p-2.5 min-h-[5.25rem] h-full flex flex-col justify-between cursor-pointer transition hover:shadow-sm ' + bgClass + '">';
-        html += '  <div class="flex items-center gap-1.5 text-xs font-bold ' + textClass + '">';
-        html += '    <span class="leading-none">' + dayNum + '</span>';
-        html += '    <span class="w-1.5 h-1.5 rounded-full shrink-0 ' + dotClass + '" aria-hidden="true"></span>';
-        html += '  </div>';
-        html += '  <div class="flex flex-col gap-0.5 items-start w-full min-h-[1.5rem]">' + badgeHtml + '</div>';
-        html += '</div>';
-      }
-
-      grid.innerHTML = html;
-    }
-
-    function renderHabitHistory() {
-      var list = document.getElementById('habit-history-list');
-      if (!list) return;
-      var days = getLast30Days().reverse();
-      var html = "";
-      var count = 0;
-
-      for (var i = 0; i < days.length; i++) {
-        var d = days[i];
-        var key = state.activeHabitId + '_' + d;
-        var rec = state.logs[key];
-        if (rec && rec.minutes > 0) {
-          count++;
-          html += '<li class="flex items-center justify-between text-xs p-2 rounded-xl bg-[#fbfaf8] border border-[#e5e2da]">';
-          html += '  <span class="text-slate-700 truncate font-medium">' + d + ': ' + (rec.subtopic || 'Çalışma') + '</span>';
-          html += '  <span class="font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-lg text-[10px]">' + rec.minutes + ' dk</span>';
-          html += '</li>';
-        }
-      }
-
-      list.innerHTML = count > 0 ? html : '<span class="text-xs text-slate-400">Bu alana ait kayıt yok.</span>';
-    }
-
-    function openLogModal(habitId, dateStr) {
-      state.selectedHabit = habitId;
-      state.selectedDate = dateStr;
-      var habit = state.habits.find(function(h){ return h.id === habitId; });
-      var rec = state.logs[habitId + '_' + dateStr] || {};
-
-      document.getElementById('modal-habit-title').innerText = (habit ? habit.title : '') + ' Kaydı';
-      document.getElementById('modal-date-label').innerText = dateStr;
-      document.getElementById('modal-duration').value = rec.minutes || 30;
-      document.getElementById('modal-subtopic').value = rec.subtopic || '';
-
-      var delBtn = document.getElementById('btn-delete-log');
-      if (rec.minutes) delBtn.classList.remove('hidden'); else delBtn.classList.add('hidden');
-
-      var modal = document.getElementById('log-modal');
-      modal.classList.remove('hidden');
-      modal.classList.add('flex');
-    }
-
-    function closeModal() {
-      var modal = document.getElementById('log-modal');
-      modal.classList.add('hidden');
-      modal.classList.remove('flex');
-    }
-
-    function setMinutes(m) {
-      document.getElementById('modal-duration').value = m;
-    }
-
-    async function saveCurrentLog() {
-      var key = state.selectedHabit + '_' + state.selectedDate;
-      var minutes = parseInt(document.getElementById('modal-duration').value) || 30;
-      var subtopic = document.getElementById('modal-subtopic').value;
-
-      state.logs[key] = { minutes: minutes, subtopic: subtopic };
-      localStorage.setItem('sumen_logs', JSON.stringify(state.logs));
-
-      if (state.supabaseClient) {
-        var authRes = await state.supabaseClient.auth.getSession();
-        var session = authRes.data ? authRes.data.session : null;
-        if (session) {
-          await state.supabaseClient.from('habit_logs').upsert({
-            habit_id: state.selectedHabit,
-            user_id: session.user.id,
-            log_date: state.selectedDate,
-            duration_minutes: minutes,
-            subtopic: subtopic
-          }, { onConflict: 'habit_id,log_date' });
-        }
-      }
-
-      closeModal();
-      renderAll();
-    }
-
-    async function deleteCurrentLog() {
-      var key = state.selectedHabit + '_' + state.selectedDate;
-      delete state.logs[key];
-      localStorage.setItem('sumen_logs', JSON.stringify(state.logs));
-
-      if (state.supabaseClient) {
-        await state.supabaseClient.from('habit_logs')
-          .delete()
-          .match({ habit_id: state.selectedHabit, log_date: state.selectedDate });
-      }
-
-      closeModal();
-      renderAll();
-    }
-
-    function addTask() {
-      var input = document.getElementById('input-task');
-      if (!input || !input.value.trim()) return;
-      var newTask = { id: Date.now().toString(), text: input.value.trim(), done: false };
-      state.tasks.push(newTask);
-      localStorage.setItem('sumen_tasks', JSON.stringify(state.tasks));
-
-      if (state.supabaseClient) {
-        state.supabaseClient.auth.getSession().then(function(res) {
-          var session = res.data ? res.data.session : null;
-          if (session) {
-            state.supabaseClient.from('tasks').insert({
-              title: newTask.text,
-              category: 'is',
-              is_completed: false,
-              user_id: session.user.id
+          if (rec.minutes > 0) {
+            state.logs.push({
+              id: uid("log"),
+              areaId: habitId,
+              subtaskId: null,
+              date: date,
+              minutes: rec.minutes,
+              note: rec.subtopic || rec.notes || ""
             });
           }
         });
-      }
-
-      input.value = '';
-      renderTasks();
-      renderMetrics();
-    }
-
-    function toggleTask(id) {
-      var t = state.tasks.find(function(x){ return x.id === id; });
-      if (t) {
-        t.done = !t.done;
-        localStorage.setItem('sumen_tasks', JSON.stringify(state.tasks));
-        if (state.supabaseClient) {
-          state.supabaseClient.from('tasks').update({ is_completed: t.done }).eq('id', id);
+        var oldTasks = localStorage.getItem("sumen_tasks");
+        if (oldTasks) {
+          JSON.parse(oldTasks).forEach(function (t) {
+            state.subtasks.push({
+              id: String(t.id || uid("st")),
+              areaId: state.areas[0].id,
+              title: t.text || t.title || "Görev",
+              done: !!t.done
+            });
+          });
         }
-        renderTasks();
-        renderMetrics();
-      }
+        state.activeAreaId = state.areas[0].id;
+      } catch (e) {}
     }
 
-    function deleteTask(id) {
-      state.tasks = state.tasks.filter(function(x){ return x.id !== id; });
-      localStorage.setItem('sumen_tasks', JSON.stringify(state.tasks));
-      if (state.supabaseClient) {
-        state.supabaseClient.from('tasks').delete().eq('id', id);
+    function applyTheme(theme) {
+      state.prefs.theme = theme;
+      document.documentElement.setAttribute("data-theme", theme);
+      document.documentElement.classList.toggle("dark", theme === "dark");
+      localStorage.setItem("foco_theme", theme);
+      persist();
+      var btn = document.getElementById("theme-btn");
+      if (btn) btn.innerHTML = theme === "dark" ? '<i class="fas fa-sun text-xs"></i>' : '<i class="fas fa-moon text-xs"></i>';
+    }
+    function toggleTheme() {
+      applyTheme(state.prefs.theme === "dark" ? "light" : "dark");
+    }
+
+    function applyLayoutPrefs() {
+      var left = document.getElementById("left-panel");
+      left.classList.remove("w-compact", "w-standard", "w-wide");
+      left.classList.add("w-" + state.prefs.leftWidth);
+      var grid = document.getElementById("calendar-grid");
+      grid.classList.remove("cell-compact", "cell-normal", "cell-wide");
+      grid.classList.add("cell-" + state.prefs.cellSize);
+      document.querySelectorAll("[data-left]").forEach(function (b) {
+        b.classList.toggle("active", b.getAttribute("data-left") === state.prefs.leftWidth);
+      });
+      document.querySelectorAll("[data-cell]").forEach(function (b) {
+        b.classList.toggle("active", b.getAttribute("data-cell") === state.prefs.cellSize);
+      });
+    }
+    function setLeftWidth(v) { state.prefs.leftWidth = v; persist(); applyLayoutPrefs(); }
+    function setCellSize(v) { state.prefs.cellSize = v; persist(); applyLayoutPrefs(); }
+
+    function tickClock() {
+      var el = document.getElementById("live-clock");
+      if (!el) return;
+      var d = new Date();
+      el.textContent = d.toLocaleDateString("tr-TR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
+        + "  •  "
+        + d.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    }
+
+    function weatherIcon(code) {
+      if (code === 0) return "fa-sun";
+      if (code <= 3) return "fa-cloud-sun";
+      if (code <= 48) return "fa-smog";
+      if (code <= 67) return "fa-cloud-rain";
+      if (code <= 77) return "fa-snowflake";
+      if (code <= 82) return "fa-cloud-showers-heavy";
+      return "fa-bolt";
+    }
+    async function loadWeather() {
+      var city = CITIES[state.prefs.city] || CITIES.sivas;
+      var sel = document.getElementById("city-select");
+      if (sel) sel.value = state.prefs.city;
+      try {
+        var url = "https://api.open-meteo.com/v1/forecast?latitude=" + city.lat + "&longitude=" + city.lon + "&current=temperature_2m,weather_code&timezone=auto";
+        var res = await fetch(url);
+        var data = await res.json();
+        var temp = Math.round(data.current.temperature_2m);
+        var code = data.current.weather_code;
+        document.getElementById("weather-temp").textContent = temp + "°C";
+        document.getElementById("weather-icon").className = "fas " + weatherIcon(code) + " text-amber-400 text-xs";
+      } catch (e) {
+        document.getElementById("weather-temp").textContent = "--°C";
       }
-      renderTasks();
+    }
+    function changeCity(id) {
+      state.prefs.city = id;
+      persist();
+      loadWeather();
+    }
+
+    function addArea() {
+      var title = prompt("Yeni ana odak alanı adı:");
+      if (!title || !title.trim()) return;
+      var area = { id: uid("area"), title: title.trim(), color: nextColor() };
+      state.areas.push(area);
+      state.activeAreaId = area.id;
+      if (!state.notes[area.id]) state.notes[area.id] = "";
+      persist();
+      renderAll();
+      syncAreasCloud();
+    }
+    function deleteArea(id, ev) {
+      if (ev) ev.stopPropagation();
+      if (state.areas.length <= 1) { alert("En az bir ana alan kalmalı."); return; }
+      if (!confirm("Bu alanı, alt görevlerini ve notlarını silmek istiyor musun?")) return;
+      state.areas = state.areas.filter(function (a) { return a.id !== id; });
+      state.subtasks = state.subtasks.filter(function (s) { return s.areaId !== id; });
+      delete state.notes[id];
+      if (state.activeAreaId === id) state.activeAreaId = state.areas[0].id;
+      persist();
+      renderAll();
+    }
+    function selectArea(id) {
+      state.activeAreaId = id;
+      persist();
+      renderAll();
+    }
+    function startRenameArea(id, ev) {
+      if (ev) ev.stopPropagation();
+      var span = document.querySelector('[data-area-title="' + id + '"]');
+      if (!span) return;
+      span.contentEditable = "true";
+      span.focus();
+      document.execCommand("selectAll", false, null);
+    }
+    function commitRenameArea(id, el) {
+      el.contentEditable = "false";
+      var title = el.textContent.trim();
+      var area = state.areas.find(function (a) { return a.id === id; });
+      if (!area) return;
+      if (!title) { el.textContent = area.title; return; }
+      area.title = title;
+      persist();
+      renderAll();
+      syncAreasCloud();
+    }
+    function setAreaColor(id, hex, ev) {
+      if (ev) ev.stopPropagation();
+      var area = state.areas.find(function (a) { return a.id === id; });
+      if (!area) return;
+      area.color = hex;
+      persist();
+      renderAll();
+    }
+
+    function addSubtask() {
+      var input = document.getElementById("input-subtask");
+      var title = input && input.value.trim();
+      if (!title || !state.activeAreaId) return;
+      var st = { id: uid("st"), areaId: state.activeAreaId, title: title, done: false };
+      state.subtasks.push(st);
+      input.value = "";
+      persist();
+      renderSubtasks();
+      renderMetrics();
+      pushSubtaskCloud(st);
+    }
+    function deleteSubtask(id, ev) {
+      if (ev) ev.stopPropagation();
+      state.subtasks = state.subtasks.filter(function (s) { return s.id !== id; });
+      persist();
+      renderSubtasks();
+      renderMetrics();
+    }
+    function toggleSubtaskDone(id, ev) {
+      if (ev) ev.stopPropagation();
+      var st = state.subtasks.find(function (s) { return s.id === id; });
+      if (!st) return;
+      st.done = !st.done;
+      persist();
+      renderSubtasks();
       renderMetrics();
     }
 
-    function renderTasks() {
-      var list = document.getElementById('list-tasks');
-      var badge = document.getElementById('task-badge');
-      if (!list) return;
-      if (badge) badge.innerText = state.tasks.length + ' Adet';
-      var html = "";
+    function openLogForSubtask(subtaskId) {
+      var st = state.subtasks.find(function (s) { return s.id === subtaskId; });
+      if (!st) return;
+      state.pendingLog = { subtaskId: st.id, areaId: st.areaId, date: todayStr() };
+      document.getElementById("log-modal-title").textContent = st.title;
+      document.getElementById("log-modal-sub").textContent = (activeArea() ? activeArea().title : "") + " • " + todayStr();
+      document.getElementById("log-hours").value = "0";
+      document.getElementById("log-minutes").value = "30";
+      document.getElementById("log-note").value = "";
+      openModal("log-modal");
+    }
+    function setLogMinutes(total) {
+      document.getElementById("log-hours").value = String(Math.floor(total / 60));
+      document.getElementById("log-minutes").value = String(total % 60);
+    }
+    async function saveSubtaskLog() {
+      if (!state.pendingLog) return;
+      var hours = parseInt(document.getElementById("log-hours").value, 10) || 0;
+      var mins = parseInt(document.getElementById("log-minutes").value, 10) || 0;
+      var minutes = hours * 60 + mins;
+      if (minutes <= 0) minutes = 30;
+      var log = {
+        id: uid("log"),
+        areaId: state.pendingLog.areaId,
+        subtaskId: state.pendingLog.subtaskId,
+        date: state.pendingLog.date,
+        minutes: minutes,
+        note: document.getElementById("log-note").value.trim()
+      };
+      state.logs.push(log);
+      persist();
+      await pushLogCloud(log);
+      closeModal("log-modal");
+      state.pendingLog = null;
+      renderAll();
+    }
 
-      for (var i = 0; i < state.tasks.length; i++) {
-        var t = state.tasks[i];
-        html += '<li class="flex items-center justify-between text-xs p-2 rounded-xl bg-[#fbfaf8] border border-[#e5e2da]">';
-        html += '  <div class="flex items-center gap-2 flex-1">';
-        html += '    <input type="checkbox" ' + (t.done ? 'checked' : '') + ' onchange="toggleTask(\'' + t.id + '\')" class="rounded accent-blue-600 cursor-pointer">';
-        html += '    <span class="' + (t.done ? 'line-through text-slate-400' : 'text-slate-700') + ' font-medium truncate">' + t.text + '</span>';
-        html += '  </div>';
-        html += '  <button onclick="deleteTask(\'' + t.id + '\')" class="text-slate-300 hover:text-rose-500 text-[11px] ml-2"><i class="fas fa-trash"></i></button>';
+    function queueNoteSave() {
+      document.getElementById("notes-status").textContent = "Kaydediliyor…";
+      clearTimeout(state.noteTimer);
+      state.noteTimer = setTimeout(function () {
+        if (!state.activeAreaId) return;
+        state.notes[state.activeAreaId] = document.getElementById("area-notes").value;
+        persist();
+        document.getElementById("notes-status").textContent = "Kaydedildi";
+      }, 400);
+    }
+
+    function logsFor(date, areaId) {
+      return state.logs.filter(function (l) {
+        return l.date === date && (!areaId || l.areaId === areaId);
+      });
+    }
+    function minutesFor(date, areaId) {
+      return logsFor(date, areaId).reduce(function (sum, l) { return sum + (l.minutes || 0); }, 0);
+    }
+    function sliceOpacity(mins) {
+      if (mins <= 0) return 0.12;
+      if (mins <= 30) return 0.4;
+      if (mins <= 60) return 0.62;
+      if (mins <= 90) return 0.82;
+      return 1;
+    }
+
+    function renderAll() {
+      applyLayoutPrefs();
+      renderAreas();
+      renderSubtasks();
+      renderNotes();
+      renderMetrics();
+      renderCalendar();
+    }
+
+    function renderAreas() {
+      var list = document.getElementById("area-list");
+      var html = "";
+      state.areas.forEach(function (a) {
+        var active = a.id === state.activeAreaId ? " active" : "";
+        var swatches = PALETTE.map(function (p) {
+          var ring = p.hex === a.color ? "outline outline-1 outline-offset-1 outline-white/70" : "";
+          return '<button title="' + p.label + '" onclick="setAreaColor(\'' + a.id + '\',\'' + p.hex + '\',event)" class="w-2.5 h-2.5 rounded-full ' + ring + '" style="background:' + p.hex + '"></button>';
+        }).join("");
+        html += '<li class="area-item rounded-xl px-2.5 py-2 cursor-pointer flex items-center gap-2' + active + '" style="--area-color:' + a.color + '" onclick="selectArea(\'' + a.id + '\')">';
+        html += '  <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background:' + a.color + '"></span>';
+        html += '  <span data-area-title="' + a.id + '" class="flex-1 text-xs font-semibold truncate" ondblclick="startRenameArea(\'' + a.id + '\',event)" onblur="commitRenameArea(\'' + a.id + '\',this)" onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur()}">' + esc(a.title) + '</span>';
+        html += '  <span class="hidden sm:flex gap-0.5">' + swatches + '</span>';
+        html += '  <button onclick="deleteArea(\'' + a.id + '\',event)" class="muted hover:text-rose-400 text-[10px]"><i class="fas fa-trash"></i></button>';
         html += '</li>';
-      }
+      });
       list.innerHTML = html;
     }
 
-    function toggleChatModal() {
-      var m = document.getElementById('ai-chat-modal');
-      if (!m) return;
-      m.classList.toggle('hidden');
-      m.classList.toggle('flex');
-      if (!m.classList.contains('hidden')) {
-        setTimeout(function(){ 
-          var inp = document.getElementById('chat-input');
-          if (inp) inp.focus();
-        }, 100);
+    function renderSubtasks() {
+      var area = activeArea();
+      document.getElementById("subtask-area-label").textContent = area ? area.title : "";
+      var items = state.subtasks.filter(function (s) { return s.areaId === state.activeAreaId; });
+      var list = document.getElementById("subtask-list");
+      if (!items.length) {
+        list.innerHTML = '<li class="text-xs muted px-1 py-2">Bu alana ait alt görev yok.</li>';
+        return;
       }
+      list.innerHTML = items.map(function (s) {
+        return '<li onclick="openLogForSubtask(\'' + s.id + '\')" class="flex items-center gap-2 text-xs p-2 rounded-xl cursor-pointer" style="background:var(--soft);border:1px solid var(--border)">'
+          + '<input type="checkbox" ' + (s.done ? "checked" : "") + ' onclick="toggleSubtaskDone(\'' + s.id + '\',event)" class="accent-blue-500">'
+          + '<span class="flex-1 truncate font-medium ' + (s.done ? "line-through muted" : "") + '">' + esc(s.title) + '</span>'
+          + '<span class="text-[10px] muted">log</span>'
+          + '<button onclick="deleteSubtask(\'' + s.id + '\',event)" class="muted hover:text-rose-400"><i class="fas fa-trash"></i></button>'
+          + '</li>';
+      }).join("");
     }
 
+    function renderNotes() {
+      var ta = document.getElementById("area-notes");
+      if (document.activeElement === ta) return;
+      ta.value = state.notes[state.activeAreaId] || "";
+    }
+
+    function renderMetrics() {
+      var days = getLast30Days();
+      var totalMins = 0;
+      var activeDays = 0;
+      days.forEach(function (d) {
+        var m = minutesFor(d);
+        totalMins += m;
+        if (m > 0) activeDays++;
+      });
+      document.getElementById("metric-total-time").textContent = Math.floor(totalMins / 60) + " sa " + (totalMins % 60) + " dk";
+      document.getElementById("metric-streak").textContent = activeDays + " Gün";
+      document.getElementById("metric-subtasks").textContent = state.subtasks.filter(function (s) { return !s.done; }).length + " Adet";
+      document.getElementById("metric-rhythm").textContent = "%" + Math.round((activeDays / 30) * 100);
+    }
+
+    function renderCalendar() {
+      var grid = document.getElementById("calendar-grid");
+      var days = getLast30Days();
+      var areas = state.areas;
+      document.getElementById("legend").innerHTML = areas.map(function (a) {
+        return '<span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full" style="background:' + a.color + '"></span>' + esc(a.title) + '</span>';
+      }).join("");
+      var html = "";
+      days.forEach(function (d) {
+        var dayNum = new Date(d + "T12:00:00").getDate();
+        var slices = areas.map(function (a) {
+          var mins = minutesFor(d, a.id);
+          var title = a.title + (mins ? " • " + mins + " dk" : " • kayıt yok");
+          return '<div class="cal-slice" title="' + esc(title) + '" style="background:' + a.color + ';opacity:' + sliceOpacity(mins) + '"></div>';
+        }).join("");
+        html += '<button type="button" onclick="openDayDetail(\'' + d + '\')" class="cal-cell rounded-xl p-2 text-left">';
+        html += '  <div class="cal-slices">' + (slices || "") + '</div>';
+        html += '  <div class="cal-day flex items-center gap-1.5 text-xs font-bold">';
+        html += '    <span>' + dayNum + '</span><span class="w-1.5 h-1.5 rounded-full bg-white/80"></span>';
+        html += '  </div></button>';
+      });
+      grid.innerHTML = html;
+      applyLayoutPrefs();
+    }
+
+    function openDayDetail(dateStr) {
+      document.getElementById("day-modal-date").textContent = dateStr;
+      var entries = logsFor(dateStr);
+      var list = document.getElementById("day-modal-list");
+      if (!entries.length) {
+        list.innerHTML = '<li class="text-xs muted">Bu gün henüz çalışma kaydı yok.</li>';
+      } else {
+        list.innerHTML = entries.map(function (l) {
+          var area = state.areas.find(function (a) { return a.id === l.areaId; });
+          var st = state.subtasks.find(function (s) { return s.id === l.subtaskId; });
+          var areaTitle = area ? area.title : "Alan";
+          var subTitle = st ? st.title : (l.note || "Çalışma");
+          return '<li class="text-xs p-2.5 rounded-xl flex items-start gap-2" style="background:var(--soft);border:1px solid var(--border)">'
+            + '<span class="w-2 h-2 mt-1 rounded-full shrink-0" style="background:' + (area ? area.color : "#64748b") + '"></span>'
+            + '<div class="flex-1 min-w-0"><div class="font-semibold">' + esc(areaTitle) + '</div>'
+            + '<div class="muted">' + esc(subTitle) + (l.note && st ? " — " + esc(l.note) : "") + '</div></div>'
+            + '<span class="font-bold text-blue-400 shrink-0">' + l.minutes + ' dk</span></li>';
+        }).join("");
+      }
+      openModal("day-modal");
+    }
+
+    function openModal(id) {
+      var m = document.getElementById(id);
+      m.classList.remove("hidden");
+      m.classList.add("flex");
+    }
+    function closeModal(id) {
+      var m = document.getElementById(id);
+      m.classList.add("hidden");
+      m.classList.remove("flex");
+    }
+
+    function initSupabase() {
+      if (!window.supabase) return;
+      state.supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      checkUserSession();
+    }
+    async function currentSession() {
+      if (!state.supabaseClient) return null;
+      var res = await state.supabaseClient.auth.getSession();
+      return res.data ? res.data.session : null;
+    }
+    async function checkUserSession() {
+      var session = await currentSession();
+      var authBtn = document.getElementById("auth-btn");
+      if (session && authBtn) {
+        var username = session.user.email ? session.user.email.split("@")[0] : "Kullanıcı";
+        authBtn.innerHTML = '<i class="fas fa-user-check text-emerald-400"></i> ' + esc(username);
+        pullCloudData();
+      }
+    }
+    async function handleAuthClick() {
+      if (!state.supabaseClient) return;
+      await state.supabaseClient.auth.signInWithOAuth({
+        provider: "google",
+        options: { redirectTo: window.location.origin }
+      });
+    }
+    async function pullCloudData() {
+      if (!state.supabaseClient) return;
+      var resLogs = await state.supabaseClient.from("habit_logs").select("*");
+      if (resLogs.data) {
+        resLogs.data.forEach(function (row) {
+          var parsed = [];
+          try { parsed = JSON.parse(row.subtopic || "[]"); } catch (e) { parsed = []; }
+          if (!Array.isArray(parsed) || !parsed.length) {
+            if (row.duration_minutes > 0) {
+              parsed = [{ id: "cloud_" + row.habit_id + "_" + row.log_date, minutes: row.duration_minutes, note: row.notes || row.subtopic || "", subtaskId: null }];
+            }
+          }
+          parsed.forEach(function (p) {
+            var exists = state.logs.some(function (l) {
+              return l.areaId === row.habit_id && l.date === row.log_date && l.minutes === p.minutes && (l.note || "") === (p.note || "");
+            });
+            if (!exists && p.minutes > 0) {
+              state.logs.push({
+                id: p.id || uid("log"),
+                areaId: row.habit_id,
+                subtaskId: p.subtaskId || null,
+                date: row.log_date,
+                minutes: p.minutes,
+                note: p.note || ""
+              });
+            }
+            if (!state.areas.some(function (a) { return a.id === row.habit_id; })) {
+              state.areas.push({ id: row.habit_id, title: row.habit_id, color: nextColor() });
+            }
+          });
+        });
+      }
+      var resTasks = await state.supabaseClient.from("tasks").select("*");
+      if (resTasks.data) {
+        resTasks.data.forEach(function (t) {
+          if (state.subtasks.some(function (s) { return s.id === String(t.id); })) return;
+          var areaId = t.category && state.areas.some(function (a) { return a.id === t.category; }) ? t.category : (state.areas[0] && state.areas[0].id);
+          if (!areaId) return;
+          state.subtasks.push({ id: String(t.id), areaId: areaId, title: t.title, done: !!t.is_completed });
+        });
+      }
+      persist();
+      renderAll();
+    }
+    async function pushLogCloud(log) {
+      var session = await currentSession();
+      if (!session) return;
+      var dayLogs = logsFor(log.date, log.areaId).map(function (l) {
+        return { id: l.id, subtaskId: l.subtaskId, minutes: l.minutes, note: l.note };
+      });
+      var total = dayLogs.reduce(function (s, l) { return s + l.minutes; }, 0);
+      await state.supabaseClient.from("habit_logs").upsert({
+        habit_id: log.areaId,
+        user_id: session.user.id,
+        log_date: log.date,
+        duration_minutes: total,
+        subtopic: JSON.stringify(dayLogs)
+      }, { onConflict: "habit_id,log_date" });
+    }
+    async function pushSubtaskCloud(st) {
+      var session = await currentSession();
+      if (!session) return;
+      await state.supabaseClient.from("tasks").insert({
+        title: st.title,
+        category: st.areaId,
+        is_completed: !!st.done,
+        user_id: session.user.id
+      });
+    }
+    async function syncAreasCloud() {}
+
+    function toggleChatModal() {
+      var m = document.getElementById("ai-chat-modal");
+      m.classList.toggle("hidden");
+      m.classList.toggle("flex");
+      if (!m.classList.contains("hidden")) {
+        setTimeout(function () {
+          var inp = document.getElementById("chat-input");
+          if (inp) inp.focus();
+        }, 80);
+      }
+    }
     function handleChatKeyDown(e) {
-      if (e.key === 'Enter' && !e.shiftKey) {
+      if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
         sendChatMessage();
       }
     }
-
+    function toggleConfigModal() {
+      var m = document.getElementById("config-modal");
+      m.classList.toggle("hidden");
+      m.classList.toggle("flex");
+      var input = document.getElementById("cfg-gemini");
+      if (input) input.value = localStorage.getItem("gemini_api_key") || "";
+    }
+    function saveConfigurations() {
+      var g = (document.getElementById("cfg-gemini").value || "").trim();
+      if (g) {
+        localStorage.setItem("gemini_api_key", g);
+        alert("Gemini API Anahtarı kaydedildi!");
+      }
+      toggleConfigModal();
+    }
     async function sendChatMessage() {
-      var input = document.getElementById('chat-input');
-      if (!input) return;
+      var input = document.getElementById("chat-input");
       var text = input.value.trim();
       if (!text) return;
-
-      var geminiKey = (localStorage.getItem('gemini_api_key') || '').trim();
+      var geminiKey = (localStorage.getItem("gemini_api_key") || "").trim();
       if (!geminiKey) {
-        alert("Lütfen önce sağ üstteki Ayarlar (⚙️) butonundan Gemini API anahtarınızı girin.");
+        alert("Lütfen önce Ayarlar butonundan Gemini API anahtarınızı girin.");
         toggleConfigModal();
         return;
       }
-
-      var chatContainer = document.getElementById('chat-messages');
-      chatContainer.innerHTML += '<div class="bg-blue-600 text-white self-end p-3 rounded-2xl max-w-[85%] whitespace-pre-wrap">' + text + '</div>';
-      input.value = '';
-      chatContainer.scrollTop = chatContainer.scrollHeight;
-
-      var loadingId = 'loading-' + Date.now();
-      chatContainer.innerHTML += '<div id="' + loadingId + '" class="bg-slate-100 text-slate-500 self-start p-3 rounded-2xl max-w-[85%] flex items-center gap-2"><i class="fas fa-circle-notch fa-spin text-blue-600"></i> Yanıt hazırlanıyor...</div>';
-      chatContainer.scrollTop = chatContainer.scrollHeight;
-
+      var chat = document.getElementById("chat-messages");
+      chat.innerHTML += '<div class="bg-blue-600 text-white self-end p-3 rounded-2xl max-w-[85%] whitespace-pre-wrap">' + esc(text) + "</div>";
+      input.value = "";
+      chat.scrollTop = chat.scrollHeight;
+      var loadingId = "loading-" + Date.now();
+      chat.innerHTML += '<div id="' + loadingId + '" class="self-start p-3 rounded-2xl max-w-[85%] muted" style="background:var(--hover)"><i class="fas fa-circle-notch fa-spin text-blue-400"></i> Yanıt hazırlanıyor...</div>';
       var focoVerileri = {
-        alanlar: state.habits.map(function(h){ return h.title; }),
-        kayitlar: state.logs,
-        yapilacak_isler: state.tasks.filter(function(t){ return !t.done; }).map(function(t){ return t.text; })
+        alanlar: state.areas,
+        alt_gorevler: state.subtasks,
+        notlar: state.notes,
+        kayitlar: state.logs.slice(-80)
       };
-
       var systemPrompt = "Sen FocoDesk akıllı akademik danışmanısın. Kullanıcı verileri: " + JSON.stringify(focoVerileri) + ". Samimi ve net Türkçe yanıt ver.";
       var replyText = null;
-
       try {
-        var res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + geminiKey, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ role: 'user', parts: [{ text: systemPrompt + "\n\nSoru: " + text }] }]
-          })
+        var res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + geminiKey, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: systemPrompt + "\n\nSoru: " + text }] }] })
         });
         var data = await res.json();
         if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts[0]) {
@@ -618,32 +955,24 @@
       } catch (e) {
         replyText = "Bağlantı Hatası: " + e.message;
       }
-
       var loaderEl = document.getElementById(loadingId);
       if (loaderEl) loaderEl.remove();
-
-      chatContainer.innerHTML += '<div class="bg-slate-100 text-slate-800 self-start p-3 rounded-2xl max-w-[85%] whitespace-pre-wrap leading-relaxed">' + (replyText || "Cevap üretilemedi.") + '</div>';
-      chatContainer.scrollTop = chatContainer.scrollHeight;
+      chat.innerHTML += '<div class="self-start p-3 rounded-2xl max-w-[85%] whitespace-pre-wrap leading-relaxed" style="background:var(--hover)">' + esc(replyText || "Cevap üretilemedi.") + "</div>";
+      chat.scrollTop = chat.scrollHeight;
     }
 
-    function toggleConfigModal() {
-      var m = document.getElementById('config-modal');
-      if (!m) return;
-      m.classList.toggle('hidden');
-      m.classList.toggle('flex');
-      var input = document.getElementById('cfg-gemini');
-      if (input) input.value = localStorage.getItem('gemini_api_key') || '';
+    function initApp() {
+      loadLocalState();
+      applyTheme(state.prefs.theme || "dark");
+      tickClock();
+      setInterval(tickClock, 1000);
+      loadWeather();
+      setInterval(loadWeather, 15 * 60 * 1000);
+      initSupabase();
+      renderAll();
     }
-
-    function saveConfigurations() {
-      var input = document.getElementById('cfg-gemini');
-      var g = input ? input.value.trim() : '';
-      if (g) {
-        localStorage.setItem('gemini_api_key', g);
-        alert("Gemini API Anahtarı kaydedildi!");
-      }
-      toggleConfigModal();
-    }
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", initApp);
+    else initApp();
   </script>
 </body>
 </html>
