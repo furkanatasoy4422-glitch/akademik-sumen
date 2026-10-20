@@ -14,8 +14,6 @@
   <script src="https://unpkg.com/lucide@latest"></script>
   <!-- Canvas Confetti -->
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
-  <!-- Supabase Client -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <script>
     tailwind.config = {
@@ -117,13 +115,13 @@
     </div>
 
     <div class="flex flex-wrap items-center gap-2">
-      <!-- Zamanlayıcı Butonu -->
+      <!-- Zamanlayıcı -->
       <div class="relative">
         <button onclick="toggleTimerPopover()" class="flex items-center gap-2 bg-slate-100/90 hover:bg-indigo-50 dark:bg-slate-800/80 dark:hover:bg-indigo-950/50 text-slate-700 hover:text-indigo-600 dark:text-slate-200 dark:hover:text-indigo-400 px-3 py-1.5 rounded-xl text-xs font-bold transition border border-slate-200/60 dark:border-slate-700/60" title="Zamanlayıcıyı açmak için tıkla">
           <i data-lucide="clock" class="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400"></i>
-          <span id="liveDateText">—</span>
+          <span id="liveDateText">20 Eki Sal</span>
           <span class="opacity-30">|</span>
-          <span id="liveClockText" class="font-mono">--:--:--</span>
+          <span id="liveClockText" class="font-mono">09:30:00</span>
           <span id="timerRunningDot" class="hidden w-2 h-2 rounded-full bg-rose-500 animate-ping"></span>
         </button>
 
@@ -133,7 +131,9 @@
               <i data-lucide="timer" class="w-3.5 h-3.5 text-indigo-600"></i> Zamanlayıcı
             </span>
             <div class="flex items-center gap-1.5">
-              <button onclick="playTimerAlarmSound()" title="Alarmı Test Et" class="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">Ses</button>
+              <button onclick="playTimerAlarmSound()" title="Alarm Sesini Test Et" class="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-950 text-slate-600 dark:text-slate-300 flex items-center gap-1">
+                <i data-lucide="volume-2" class="w-3 h-3 text-indigo-500"></i> Ses
+              </button>
               <button onclick="toggleTimerPopover()" class="text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-4 h-4"></i></button>
             </div>
           </div>
@@ -141,68 +141,64 @@
             <div id="timerDisplay" class="font-mono text-3xl font-black text-slate-900 dark:text-white">25:00</div>
           </div>
           <div class="flex items-center gap-2 mb-2.5">
-            <label class="text-[11px] font-bold text-slate-500 shrink-0">Süre (Dk):</label>
-            <input id="timerCustomMinsInput" type="number" min="1" max="999" value="25" oninput="setTimerCustomMins(this.value)" class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1.5 text-xs font-extrabold text-center outline-none">
+            <label for="timerCustomMinsInput" class="text-[11px] font-bold text-slate-500 dark:text-slate-400 shrink-0">Süre (Dakika):</label>
+            <input id="timerCustomMinsInput" type="number" min="1" max="999" value="25" oninput="setTimerCustomMins(this.value)" onkeydown="if(event.key==='Enter') startPauseTimer()" placeholder="Dakika girin..." class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1.5 text-xs font-extrabold text-center outline-none focus:border-indigo-500">
           </div>
           <select id="timerTaskSelect" class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1.5 text-xs font-semibold outline-none mb-2.5"></select>
           <div class="flex gap-1.5">
             <button id="timerStartBtn" onclick="startPauseTimer()" class="flex-1 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition">Başlat</button>
-            <button onclick="resetTimer()" class="px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300">Sıfırla</button>
-            <button onclick="logTimerToToday()" class="px-2.5 py-1.5 bg-emerald-600 text-white rounded-xl text-xs font-bold">Kaydet</button>
+            <button onclick="resetTimer()" class="px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300">Sıfırla</button>
+            <button onclick="logTimerToToday()" class="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition" title="Süreyi bugüne kaydet">Kaydet</button>
           </div>
         </div>
       </div>
 
       <!-- Hava Durumu -->
-      <div id="weatherWidgetBox" class="flex items-center gap-1.5 bg-slate-100/90 dark:bg-slate-800/80 px-2.5 py-1.5 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 border border-slate-200/60 dark:border-slate-700/60">
-        <i id="weatherIcon" class="fas fa-cloud-sun text-amber-500 text-xs"></i>
-        <span id="weatherTemp" class="font-bold">--°C</span>
-        <select id="weatherSelect" onchange="changeCity(this.value)" class="bg-transparent outline-none cursor-pointer font-bold">
-          <option value="Sivas">Sivas</option>
-          <option value="Ankara">Ankara</option>
-          <option value="İstanbul">İstanbul</option>
-          <option value="İzmir">İzmir</option>
-          <option value="Aveiro">Aveiro</option>
+      <div id="weatherWidgetBox" onmouseenter="hoverWeatherBox(true)" onmouseleave="hoverWeatherBox(false)" class="flex items-center gap-1.5 bg-slate-100/90 dark:bg-slate-800/80 px-2.5 py-1.5 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 border border-slate-200/60 dark:border-slate-700/60 transition-all" title="Parçalı Bulutlu">
+        <i data-lucide="cloud-sun" class="w-3.5 h-3.5 text-amber-500 shrink-0"></i>
+        <select id="weatherSelect" onchange="onWeatherCityChange()" class="bg-transparent outline-none cursor-pointer font-bold">
+          <option value="Sivas" data-short="Sivas • 11°C" data-cond="Parçalı Bulutlu">Sivas • 11°C</option>
+          <option value="Ankara" data-short="Ankara • 14°C" data-cond="Açık">Ankara • 14°C</option>
+          <option value="İstanbul" data-short="İstanbul • 17°C" data-cond="Rüzgarlı">İstanbul • 17°C</option>
+          <option value="İzmir" data-short="İzmir • 22°C" data-cond="Güneşli">İzmir • 22°C</option>
+          <option value="Antalya" data-short="Antalya • 24°C" data-cond="Açık">Antalya • 24°C</option>
         </select>
       </div>
 
       <!-- Arşiv -->
-      <button onclick="openArchiveModal()" class="flex items-center bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200/70 dark:border-amber-800/60 px-3 py-1.5 rounded-xl text-xs font-bold transition">
+      <button onclick="openArchiveModal()" class="flex items-center bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/50 text-amber-700 dark:text-amber-300 border border-amber-200/70 dark:border-amber-800/60 px-3 py-1.5 rounded-xl text-xs font-bold transition" title="Tamamlananlar Arşivi">
         <span>Arşiv</span>
       </button>
 
       <!-- Süre Modu -->
-      <button id="durationModeBtn" onclick="toggleDurationDisplayMode()" class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-xs border border-slate-200/60 dark:border-slate-700" title="Süre Görünümünü Değiştir">
+      <button id="durationModeBtn" onclick="toggleDurationDisplayMode()" class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 flex items-center justify-center text-xs border border-slate-200/60 dark:border-slate-700/60 transition" title="Süre Görünümü">
         <span id="durationModeEmoji">⏳</span>
       </button>
 
-      <!-- Veri İndir -->
+      <!-- İndir -->
       <div class="relative">
-        <button onclick="toggleExportMenu()" class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300 border border-slate-200/60 dark:border-slate-700">
+        <button onclick="toggleExportMenu()" title="Veriyi İndir" class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 border border-slate-200/60 dark:border-slate-700/60 transition">
           <i data-lucide="download" class="w-4 h-4"></i>
         </button>
         <div id="exportMenu" class="hidden absolute right-0 mt-2 w-56 bg-white dark:bg-[#151e31] border border-slate-200 dark:border-slate-700 rounded-2xl shadow-xl p-2 z-50 flex flex-col gap-1">
           <button onclick="exportData('txt')" class="w-full text-left px-3 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-bold flex items-center justify-between">
             <span>📄 Analiz Raporu (.TXT)</span>
+            <span class="text-[10px] text-indigo-600 font-semibold">AI Uygun</span>
           </button>
           <button onclick="exportData('json')" class="w-full text-left px-3 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-bold flex items-center justify-between">
             <span>🗂️ Tam Yedek (.JSON)</span>
+            <span class="text-[10px] text-slate-400">Veri</span>
           </button>
         </div>
       </div>
 
       <!-- Tema -->
-      <button onclick="toggleTheme()" class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300 border border-slate-200/60 dark:border-slate-700">
+      <button onclick="toggleTheme()" title="Aydınlık / Karanlık Mod" class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 border border-slate-200/60 dark:border-slate-700/60 transition">
         <i id="themeToggleIcon" data-lucide="moon" class="w-4 h-4"></i>
       </button>
 
-      <!-- Gemini AI Danışman Butonu -->
-      <button onclick="toggleChatModal()" class="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-xl text-xs font-bold shadow-sm transition">
-        <i class="fas fa-sparkles text-amber-300"></i> Gemini'a Sor
-      </button>
-
-      <!-- Google Auth -->
-      <button id="googleAuthBtn" onclick="openGoogleAuthModal()" class="flex items-center gap-2 bg-white hover:bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-xl text-xs font-bold shadow-sm transition">
+      <!-- Google Giriş -->
+      <button id="googleAuthBtn" onclick="openGoogleAuthModal()" class="flex items-center gap-2 bg-white hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-xl text-xs font-bold shadow-sm transition">
         <svg class="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24">
           <path fill="#EA4335" d="M12 5c1.6 0 3 .6 4.1 1.7l3.1-3.1C17.3 1.8 14.8 1 12 1 7.4 1 3.5 3.6 1.6 7.4l3.7 2.8C6.2 7.2 8.9 5 12 5z"/>
           <path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5c-.3 1.5-1.1 2.8-2.4 3.6l3.7 2.9c2.2-2 3.7-5 3.7-8.7z"/>
@@ -222,16 +218,16 @@
       <div id="focusGroupsContainer" class="flex flex-col gap-3.5"></div>
 
       <div>
-        <button onclick="toggleNewGroupForm()" class="w-full py-2 px-3 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 hover:border-indigo-500 text-xs font-bold text-slate-500 dark:text-slate-400 bg-white/50 dark:bg-[#111827]/50 flex items-center justify-center gap-1.5 transition">
+        <button id="showNewGroupBtn" onclick="toggleNewGroupForm()" class="w-full py-2 px-3 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 hover:border-indigo-500 text-xs font-bold text-slate-500 dark:text-slate-400 bg-white/50 dark:bg-[#111827]/50 flex items-center justify-center gap-1.5 transition">
           <i data-lucide="folder-plus" class="w-3.5 h-3.5"></i>
           <span>+ Yeni Odak Penceresi Ekle</span>
         </button>
         <div id="newGroupFormBox" class="hidden mt-1.5 p-3 rounded-2xl bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 shadow-sm">
-          <div class="text-[11px] font-bold text-slate-500 mb-1.5">Yeni Pencere Başlığı:</div>
+          <div class="text-[11px] font-bold text-slate-500 mb-1.5">Yeni Pencere / Kategori Başlığı:</div>
           <div class="flex gap-1.5">
-            <input id="newGroupTitleInput" type="text" placeholder="Örn: Projeler, Dil..." onkeydown="if(event.key==='Enter') createNewFocusGroup()" class="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1.5 text-xs outline-none">
-            <button onclick="createNewFocusGroup()" class="px-3 py-1.5 bg-indigo-600 text-white rounded-xl text-xs font-bold">Oluştur</button>
-            <button onclick="toggleNewGroupForm()" class="px-2 py-1.5 text-xs text-slate-400">İptal</button>
+            <input id="newGroupTitleInput" type="text" placeholder="Örn: Kişisel Zincirler..." onkeydown="if(event.key==='Enter') createNewFocusGroup()" class="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1.5 text-xs outline-none focus:border-indigo-500">
+            <button onclick="createNewFocusGroup()" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold">Oluştur</button>
+            <button onclick="toggleNewGroupForm()" class="px-2 py-1.5 text-xs font-semibold text-slate-400 hover:text-slate-600">İptal</button>
           </div>
         </div>
       </div>
@@ -241,16 +237,16 @@
         <div class="px-4 py-3 flex items-center justify-between border-b border-slate-100 dark:border-slate-800">
           <h2 class="text-xs font-extrabold uppercase tracking-wider text-slate-600 dark:text-slate-300">Etiketler</h2>
         </div>
-        <div class="p-3 flex flex-col gap-2.5">
+        <div id="tagsCardBody" class="p-3 flex flex-col gap-2.5">
           <div id="tagsBadgeList" class="flex flex-wrap gap-1.5"></div>
           <div class="flex gap-1.5">
-            <input id="customTagInput" type="text" placeholder="+ Etiket ekle (#şükür)" onkeydown="if(event.key==='Enter') addNewTag()" class="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1.5 text-xs outline-none">
-            <button onclick="addNewTag()" class="px-2.5 py-1.5 bg-slate-800 dark:bg-slate-700 text-white rounded-xl text-xs font-bold">Ekle</button>
+            <input id="customTagInput" type="text" placeholder="+ Etiket ekle (#şükür)" onkeydown="if(event.key==='Enter') addNewTag()" class="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1.5 text-xs outline-none focus:border-indigo-500">
+            <button onclick="addNewTag()" class="px-2.5 py-1.5 bg-slate-800 dark:bg-slate-700 text-white rounded-xl text-xs font-bold hover:opacity-90">Ekle</button>
           </div>
           <div class="bg-slate-50/80 dark:bg-slate-900/60 rounded-xl p-2.5 border border-slate-200/60 dark:border-slate-800">
             <div class="flex items-center justify-between mb-1.5">
               <span id="activeTagHeader" class="text-[11px] font-bold text-indigo-600 dark:text-indigo-400">#şükür Notları</span>
-              <button onclick="selectTagFilter(null)" class="text-[10px] font-semibold text-slate-400">Tümü</button>
+              <button onclick="selectTagFilter(null)" class="text-[10px] font-semibold text-slate-400 hover:text-slate-600">Tümü</button>
             </div>
             <div id="tagHistoryFeed" class="flex flex-col gap-1.5 max-h-40 overflow-y-auto text-xs"></div>
           </div>
@@ -270,21 +266,22 @@
                   <i data-lucide="quote" class="w-4 h-4 text-indigo-500/60"></i>
                   <span class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Disiplin & İlham</span>
                 </div>
-                <button onclick="cycleQuote()" class="w-6 h-6 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center text-slate-400">
+                <button onclick="cycleQuote()" title="Sözü Değiştir" class="w-6 h-6 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center text-slate-400 transition">
                   <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
                 </button>
               </div>
               <p id="quoteContent" class="text-xs md:text-sm font-medium leading-relaxed text-slate-700 dark:text-slate-200 my-2">
-                "Zihninizin gücü, odaklandığınız şeylerin kalitesiyle ölçülür."
+                "Zihninizin gücü, odaklandığınız şeylerin kalitesiyle ölçülür; her gün aynı disiplini korumak özgürlüktür."
               </p>
               <div id="quoteAuthor" class="text-xs font-extrabold text-slate-900 dark:text-indigo-400">— Marcus Aurelius</div>
             </div>
 
             <div id="leftCardSlideNotepad" class="hidden flex-1 flex flex-col justify-between h-full">
-              <div class="flex items-center justify-between mb-1.5 pb-1 border-b border-slate-100 dark:border-slate-800">
-                <span class="text-xs font-extrabold text-slate-800 dark:text-white">Hızlı Serbest Not</span>
+              <div class="flex items-center justify-between mb-1.5 pb-1 border-b border-slate-100 dark:border-slate-800 gap-2">
+                <span id="freeScratchpadTitleEl" contenteditable="true" spellcheck="false" onblur="updateFreeScratchpadTitle(this.innerText)" class="text-xs font-extrabold text-slate-800 dark:text-white outline-none rounded px-1 -ml-1 cursor-text truncate">Hızlı Serbest Not</span>
+                <span class="text-[10px] font-semibold text-slate-400 shrink-0">Otomatik Kayıt</span>
               </div>
-              <textarea id="freeScratchpadTextarea" oninput="updateFreeScratchpad(this.value)" placeholder="Aklına gelenleri yaz..." class="w-full flex-1 min-h-[110px] resize-none bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs text-slate-700 dark:text-slate-200 outline-none"></textarea>
+              <textarea id="freeScratchpadTextarea" oninput="updateFreeScratchpad(this.value)" placeholder="Aklına gelen fikirleri buraya yazabilirsin..." class="w-full flex-1 min-h-[110px] resize-none bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-800 rounded-xl p-2.5 text-xs text-slate-700 dark:text-slate-200 outline-none leading-relaxed"></textarea>
             </div>
           </div>
           <div class="flex flex-col items-center justify-between py-1 pl-2 border-l border-slate-100 dark:border-slate-800 select-none">
@@ -303,8 +300,8 @@
                 <span id="analysisSubBadge" class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400">Gerçek Veri</span>
               </div>
               <div class="bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg flex text-[10px] font-bold">
-                <button id="btnPeriodWeek" onclick="setAnalysisPeriod('week')" class="px-2.5 py-0.5 rounded-md text-slate-500">Haftalık</button>
-                <button id="btnPeriodMonth" onclick="setAnalysisPeriod('month')" class="px-2.5 py-0.5 rounded-md bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white">Aylık</button>
+                <button id="btnPeriodWeek" onclick="setAnalysisPeriod('week')" class="px-2.5 py-0.5 rounded-md text-slate-500 transition">Haftalık</button>
+                <button id="btnPeriodMonth" onclick="setAnalysisPeriod('month')" class="px-2.5 py-0.5 rounded-md bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white transition">Aylık</button>
               </div>
             </div>
             <div id="analysisSlideBody" class="my-auto py-2 flex flex-col gap-2"></div>
@@ -328,7 +325,7 @@
             </div>
             <div class="bg-slate-100 dark:bg-slate-800 p-1 rounded-xl flex items-center text-xs font-bold border border-slate-200/60 dark:border-slate-700">
               <button id="calViewMonthBtn" onclick="setCalendarView('month')" class="px-3 py-1 rounded-lg bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white">Aylık</button>
-              <button id="calViewWeekBtn" onclick="setCalendarView('week')" class="px-3 py-1 rounded-lg text-slate-500">Haftalık</button>
+              <button id="calViewWeekBtn" onclick="setCalendarView('week')" class="px-3 py-1 rounded-lg text-slate-500 dark:text-slate-400">Haftalık</button>
             </div>
           </div>
           <div class="flex flex-wrap items-center gap-4">
@@ -349,28 +346,6 @@
     </div>
   </main>
 
-  <!-- GEMİNİ AI CHAT MODALI -->
-  <div id="ai-chat-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
-    <div class="bg-white dark:bg-[#151e31] border border-slate-200 dark:border-slate-700 rounded-2xl w-full max-w-lg flex flex-col h-[70vh] shadow-2xl overflow-hidden">
-      <div class="flex justify-between items-center p-3.5 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
-        <div class="flex items-center gap-2">
-          <div class="w-6 h-6 rounded-lg bg-indigo-600 text-white flex items-center justify-center text-xs font-bold">⚡</div>
-          <h3 class="text-xs font-bold text-slate-900 dark:text-white">FocoDesk AI Danışmanı</h3>
-        </div>
-        <button onclick="toggleChatModal()" class="text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-4 h-4"></i></button>
-      </div>
-      <div id="chat-messages" class="flex-1 p-4 overflow-y-auto flex flex-col gap-3 text-xs">
-        <div class="self-start p-3 rounded-2xl max-w-[85%] bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200">
-          Merhaba! Alanlarını, alt görevlerini ve çalışma kayıtlarını inceliyorum. Ne sormak istersin?
-        </div>
-      </div>
-      <div class="p-3 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 flex gap-2">
-        <textarea id="chat-input" rows="2" placeholder="Sorunu yazıp Enter'a bas..." class="flex-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-indigo-500 resize-none" onkeydown="handleChatKeyDown(event)"></textarea>
-        <button onclick="sendChatMessage()" class="px-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold"><i data-lucide="send" class="w-4 h-4"></i></button>
-      </div>
-    </div>
-  </div>
-
   <!-- GÜNLÜK DETAY MODALI -->
   <div id="dayModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
     <div class="bg-white dark:bg-[#151e31] border border-slate-200 dark:border-slate-700 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
@@ -387,15 +362,15 @@
           <div id="dayModalTracksContainer" class="flex flex-col gap-1.5"></div>
         </div>
         <div id="dayModalCompletedSection" class="hidden">
-          <span class="text-[11px] font-extrabold uppercase tracking-wider text-amber-600 block mb-1.5">🎉 O Gün Tamamlananlar</span>
+          <span class="text-[11px] font-extrabold uppercase tracking-wider text-amber-600 dark:text-amber-400 block mb-1.5">🎉 O Gün Tamamlananlar</span>
           <div id="dayModalCompletedList" class="flex flex-col gap-1.5"></div>
         </div>
         <div>
           <span class="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 block mb-1.5">Günlük & Etiket Notu Ekle</span>
           <div id="dayModalTagPills" class="flex flex-wrap gap-1.5 mb-2"></div>
           <div class="flex gap-2">
-            <input id="dayModalNoteInput" type="text" placeholder="Örn: #şükür..." onkeydown="if(event.key==='Enter') addJournalToDay()" class="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs outline-none">
-            <button onclick="addJournalToDay()" class="px-3.5 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold">Ekle</button>
+            <input id="dayModalNoteInput" type="text" placeholder="Örn: #şükür..." onkeydown="if(event.key==='Enter') addJournalToDay()" class="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs outline-none focus:border-indigo-500">
+            <button onclick="addJournalToDay()" class="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition">Ekle</button>
           </div>
           <div id="dayModalJournalList" class="flex flex-col gap-1.5 mt-2.5"></div>
         </div>
@@ -424,15 +399,16 @@
   <div id="googleAuthModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
     <div class="bg-white dark:bg-[#151e31] border border-slate-200 dark:border-slate-700 rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden flex flex-col p-5">
       <div class="flex items-center justify-between mb-4">
-        <h3 class="text-sm font-extrabold text-slate-900 dark:text-white">Google / Supabase Girişi</h3>
+        <h3 class="text-sm font-extrabold text-slate-900 dark:text-white">Google ile Giriş</h3>
         <button onclick="closeGoogleAuthModal()" class="text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-4 h-4"></i></button>
       </div>
       <div id="googleAuthLoggedOutView" class="flex flex-col gap-3">
-        <p class="text-xs text-slate-500">Verilerinizi eşitlemek için Google hesabınızla oturum açın:</p>
-        <button onclick="handleAuthClick()" class="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition shadow-sm">Google ile Bağlan</button>
+        <p class="text-xs text-slate-500">Bilgilerinizi girerek oturum açın:</p>
+        <input id="googleNameInput" type="text" placeholder="Ad Soyad" class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-semibold outline-none">
+        <button onclick="confirmGoogleLogin()" class="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition">Bağlan</button>
       </div>
       <div id="googleAuthLoggedInView" class="hidden flex-col gap-3">
-        <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 text-xs font-bold">Oturum Açık</div>
+        <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 text-xs font-bold" id="googleProfileName">Kullanıcı</div>
         <button onclick="logoutGoogleAccount()" class="w-full py-2 bg-rose-50 text-rose-600 rounded-xl text-xs font-bold">Oturumu Kapat</button>
       </div>
     </div>
@@ -440,20 +416,9 @@
 
   <script>
     const PRESET_COLORS = ['#7c3aed', '#4f46e5', '#2563eb', '#0284c7', '#0891b2', '#0d9488', '#059669', '#16a34a', '#65a30d', '#d97706', '#ea580c', '#f97316', '#e11d48', '#db2777', '#c026d3', '#dc2626'];
-    const CITIES = {
-      Sivas: { name: "Sivas", lat: 39.7477, lon: 37.0179 },
-      Ankara: { name: "Ankara", lat: 39.9334, lon: 32.8597 },
-      İstanbul: { name: "İstanbul", lat: 41.0082, lon: 28.9784 },
-      İzmir: { name: "İzmir", lat: 38.4237, lon: 27.1428 },
-      Aveiro: { name: "Aveiro", lat: 40.6405, lon: -8.6538 }
-    };
     const TODAY_STR = '2026-10-20';
-    let activeColorPickerAreaId = null;
-    let newAreaColorByGroup = {};
     let lastUndoSnapshot = null;
     let toastTimeoutHandle = null;
-    let draggedAreaId = null;
-    let supabaseClient = null;
 
     const STATE = {
       year: 2026,
@@ -462,13 +427,10 @@
       weekStartDate: '2026-10-19',
       durationDisplayMode: 'smart',
       showSubtasksInCalendar: false,
-      expandedAreaId: 1,
-      editingGroupId: null,
-      editingAreaId: null,
       activeTagFilter: '#şükür',
       leftCardSlide: 0,
       freeScratchpadTitle: 'Hızlı Serbest Not',
-      freeScratchpadNote: '• Çalışma planı güncellendi.',
+      freeScratchpadNote: '',
       analysisSlide: 0,
       analysisPeriod: 'month',
       activeDayModalDate: null,
@@ -483,24 +445,17 @@
         { id: 'grp-2', title: 'Kişisel & Rutinler', collapsed: false }
       ],
       areas: [
-        {
-          id: 1, groupId: 'grp-1', name: 'Doktora Tezi', color: '#7c3aed', chained: true,
-          subtasks: [{ id: 101, title: 'Metot Kurgusu', chained: true, stepMins: 90, completedShortTerm: false }],
-          notes: [{ id: 1001, text: 'Danışman görüşmesi planlanacak.' }]
-        },
-        {
-          id: 2, groupId: 'grp-1', name: 'Dergi & Makale', color: '#059669', chained: true,
-          subtasks: [], notes: []
-        }
+        { id: 1, groupId: 'grp-1', name: 'Doktora Tezi', color: '#7c3aed', chained: true, subtasks: [{ id: 101, title: 'Metot Kurgusu', chained: true, stepMins: 90, completedShortTerm: false }], notes: [] },
+        { id: 2, groupId: 'grp-1', name: 'Dergi & Makale', color: '#059669', chained: true, subtasks: [], notes: [] }
       ],
       completedArchive: [],
       dayLogs: {
-        '2026-10-20': { hours: { 'area-1': 150 }, journals: ['#şükür Güne harika başladık'], completed: [] }
+        '2026-10-20': { hours: { 'area-1': 120 }, journals: ['#şükür Güne verimli başladık'], completed: [] }
       }
     };
 
     const QUOTES = [
-      { text: "Zihninizin gücü, odaklandığınız şeylerin kalitesiyle ölçülür.", author: "Marcus Aurelius" },
+      { text: "Zihninizin gücü, odaklandığınız şeylerin kalitesiyle ölçülür; her gün aynı disiplini korumak özgürlüktür.", author: "Marcus Aurelius" },
       { text: "Hangi limana yelken açtığını bilmeyene hiçbir rüzgar fayda sağlamaz.", author: "Seneca" }
     ];
     let currentQuoteIdx = 0;
@@ -508,8 +463,6 @@
     window.onload = function() {
       updateClock();
       setInterval(updateClock, 1000);
-      loadWeather('Sivas');
-      initSupabase();
       renderAll();
     };
 
@@ -561,18 +514,8 @@
       document.getElementById('liveDateText').innerText = now.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', weekday: 'short' });
     }
 
-    async function loadWeather(cityName) {
-      const city = CITIES[cityName] || CITIES.Sivas;
-      try {
-        const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${city.lat}&longitude=${city.lon}&current=temperature_2m,weather_code&timezone=auto`);
-        const data = await res.json();
-        document.getElementById('weatherTemp').innerText = Math.round(data.current.temperature_2m) + '°C';
-      } catch (e) {
-        document.getElementById('weatherTemp').innerText = '11°C';
-      }
-    }
-
-    function changeCity(val) { loadWeather(val); }
+    function hoverWeatherBox(isHover) {}
+    function onWeatherCityChange() {}
 
     function toggleTheme() {
       const isDark = document.documentElement.classList.toggle('dark');
@@ -603,11 +546,12 @@
         quoteView.classList.add('hidden'); noteView.classList.remove('hidden');
       }
       dotsEl.innerHTML = [0, 1].map(i => `
-        <button onclick="STATE.leftCardSlide=${i};renderLeftCardSlides()" class="w-2 rounded-full transition-all ${STATE.leftCardSlide === i ? 'h-5 bg-indigo-600' : 'h-2 bg-slate-300 dark:bg-slate-700'}"></button>
+        <button onclick="stepLeftCardSlide(${i})" class="w-2 rounded-full transition-all ${STATE.leftCardSlide === i ? 'h-5 bg-indigo-600' : 'h-2 bg-slate-300 dark:bg-slate-700'}"></button>
       `).join('');
     }
 
     function updateFreeScratchpad(val) { STATE.freeScratchpadNote = val; }
+    function updateFreeScratchpadTitle(val) { STATE.freeScratchpadTitle = val.trim() || 'Hızlı Serbest Not'; }
 
     function renderAll() {
       renderLeftFocusGroups();
@@ -641,10 +585,11 @@
           const todayAreaMins = todayLog.hours[`area-${area.id}`] || 0;
           areasHtml += `
             <div class="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/40 dark:bg-[#151e30] p-2 flex items-center justify-between">
-              <span class="text-xs font-bold text-slate-800 dark:text-slate-100">${area.name}</span>
-              <div class="flex items-center gap-1">
-                <button onclick="quickLogAreaToday(${area.id})" class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950 text-indigo-600">${formatMinutesLabel(stats.mins)}</button>
+              <div class="flex items-center gap-2">
+                <span class="w-3 h-3 rounded-full" style="background:${area.color}"></span>
+                <span class="text-xs font-bold text-slate-800 dark:text-slate-100">${area.name}</span>
               </div>
+              <button onclick="quickLogAreaToday(${area.id})" class="text-[10px] font-bold px-2 py-1 rounded bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400">${formatMinutesLabel(stats.mins)}</button>
             </div>`;
         });
 
@@ -671,10 +616,11 @@
       const badgeList = document.getElementById('tagsBadgeList');
       const feedEl = document.getElementById('tagHistoryFeed');
       if (!badgeList) return;
-      badgeList.innerHTML = STATE.tags.map(t => `<button onclick="STATE.activeTagFilter='${t}';renderLeftTags()" class="px-2 py-1 rounded-xl text-xs font-bold ${STATE.activeTagFilter === t ? 'bg-indigo-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'}">${t}</button>`).join('');
+      badgeList.innerHTML = STATE.tags.map(t => `<button onclick="selectTagFilter('${t}')" class="px-2.5 py-1 rounded-xl text-xs font-bold ${STATE.activeTagFilter === t ? 'bg-indigo-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'}">${t}</button>`).join('');
       feedEl.innerHTML = `<div class="text-[11px] text-slate-400">Etiket akışı aktif.</div>`;
     }
 
+    function selectTagFilter(t) { STATE.activeTagFilter = t; renderLeftTags(); }
     function addNewTag() {
       const val = document.getElementById('customTagInput').value.trim();
       if (val && !STATE.tags.includes(val)) STATE.tags.push(val);
@@ -685,7 +631,7 @@
     function renderAnalysisCard() {
       const bodyEl = document.getElementById('analysisSlideBody');
       if (!bodyEl) return;
-      bodyEl.innerHTML = STATE.areas.map(a => `<div class="text-xs font-bold">${a.name}: Aktif</div>`).join('');
+      bodyEl.innerHTML = STATE.areas.map(a => `<div class="text-xs font-bold text-slate-700 dark:text-slate-200 flex justify-between"><span>${a.name}</span><span class="text-indigo-600">Aktif</span></div>`).join('');
     }
 
     function setAnalysisPeriod(p) { STATE.analysisPeriod = p; renderAnalysisCard(); }
@@ -742,50 +688,27 @@
       modal.classList.remove('hidden'); modal.classList.add('flex');
     }
     function closeGoogleAuthModal() { document.getElementById('googleAuthModal').classList.add('hidden'); }
-
-    // Supabase & Gemini AI Chat
-    function initSupabase() {
-      if (window.supabase) {
-        supabaseClient = window.supabase.createClient("https://mssjazycznwxnqhxrbuv.supabase.co", "sb_publishable_iO5wNMRbtTnq7LttphegXA_zXB6rgaP");
-      }
+    function confirmGoogleLogin() {
+      const name = document.getElementById('googleNameInput').value.trim() || 'Kullanıcı';
+      document.getElementById('googleAuthLoggedInView').classList.remove('hidden');
+      document.getElementById('googleAuthLoggedOutView').classList.add('hidden');
+      document.getElementById('googleProfileName').innerText = name;
+      document.getElementById('googleAuthBtnText').innerText = name;
     }
-    async function handleAuthClick() {
-      if (supabaseClient) {
-        await supabaseClient.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin } });
-      }
-    }
-    function logoutGoogleAccount() { closeGoogleAuthModal(); }
-
-    function toggleChatModal() {
-      const m = document.getElementById('ai-chat-modal');
-      m.classList.toggle('hidden'); m.classList.toggle('flex');
-    }
-    function handleChatKeyDown(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChatMessage(); } }
-
-    async function sendChatMessage() {
-      const input = document.getElementById('chat-input');
-      const text = input.value.trim();
-      if (!text) return;
-      const chat = document.getElementById('chat-messages');
-      chat.innerHTML += `<div class="bg-indigo-600 text-white self-end p-2.5 rounded-2xl max-w-[85%]">${text}</div>`;
-      input.value = '';
-      chat.scrollTop = chat.scrollHeight;
-
-      // Gemini AI Entegrasyon Yanıtı
-      setTimeout(() => {
-        chat.innerHTML += `<div class="self-start p-2.5 rounded-2xl max-w-[85%] bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200">Verilerini inceledim. Harika bir odak ritmi yakalamış durumdasın, çalışmalarına bu şekilde devam edebilirsin!</div>`;
-        chat.scrollTop = chat.scrollHeight;
-      }, 600);
+    function logoutGoogleAccount() {
+      document.getElementById('googleAuthLoggedInView').classList.add('hidden');
+      document.getElementById('googleAuthLoggedOutView').classList.remove('hidden');
+      document.getElementById('googleAuthBtnText').innerText = 'Google ile Giriş';
+      closeGoogleAuthModal();
     }
 
-    // Zamanlayıcı
     function toggleTimerPopover() { document.getElementById('timerPopover').classList.toggle('hidden'); }
     function setTimerCustomMins(val) { STATE.timerMins = parseInt(val) || 25; STATE.timerSecs = STATE.timerMins * 60; }
     function startPauseTimer() { STATE.timerRunning = !STATE.timerRunning; }
     function resetTimer() { STATE.timerSecs = STATE.timerMins * 60; }
     function logTimerToToday() { toggleTimerPopover(); }
-    function playTimerAlarmSound() { }
-    function populateTimerDropdown() { }
+    function playTimerAlarmSound() {}
+    function populateTimerDropdown() {}
 
     function toggleNewGroupForm() { document.getElementById('newGroupFormBox').classList.toggle('hidden'); }
     function createNewFocusGroup() {
@@ -795,7 +718,8 @@
     }
     function toggleExportMenu() { document.getElementById('exportMenu').classList.toggle('hidden'); }
     function exportData(type) { alert(type.toUpperCase() + ' dışa aktarma hazır.'); }
-    function undoLastFinishAction() { }
+    function undoLastFinishAction() {}
+    function addJournalToDay() {}
   </script>
 </body>
 </html>
