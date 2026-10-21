@@ -92,7 +92,7 @@
         </svg>
       </div>
 
-      <h2 style="font-size: 1.5rem; font-weight: 800; color: #0f172a; margin: 0 0 0.5rem;">FocoDesk'e Hoş Geldin</h2>
+      <h2 style="font-size: 1.5rem; font-weight: 800; color: #0f172a; margin: 0 0 0.5rem;">Foco'ya Hoş Geldin</h2>
       <p style="font-size: 0.82rem; color: #64748b; line-height: 1.5; margin: 0 0 1.5rem;">
         Akademik çalışmalarınızı, odak sürelerinizi ve zincirlerinizi takip edin.
       </p>
@@ -710,11 +710,15 @@
     async function handleSupabaseGoogleAuth() {
       if (!supabaseClient) return;
       if (STATE.googleUser) {
-        if (confirm("Oturumu kapatmak istiyor musunuz?")) {
+        if (confirm("Oturumu kapatmak istiyor musunuz? Tüm oturum ve yerel veriler temizlenecektir.")) {
           await supabaseClient.auth.signOut();
-          setLoggedInUser(null);
-          saveLocal();
-          renderAll();
+          
+          // Tarayıcıdaki tüm yerel kayıtları ve oturum izlerini siler
+          localStorage.removeItem(STORE_KEY);
+          sessionStorage.removeItem('foco_skip_login');
+          
+          // Sayfayı tertemiz baştan yükleyip giriş ekranına yönlendirir
+          window.location.reload();
         }
         return;
       }
