@@ -828,10 +828,10 @@
       }
     }
 
-    function dismissLandingScreen() {
+   function dismissLandingScreen() {
       sessionStorage.setItem('foco_skip_login', 'true');
       const screen = document.getElementById('landingScreen');
-      if (screen) screen.classList.add('hidden');
+      if (screen) screen.style.display = 'none';
     }
 
     async function handleLandingGoogleLogin() {
@@ -2093,3 +2093,6 @@
         dismissLandingScreen();
       }
     };
+</script>
+</body>
+</html>
