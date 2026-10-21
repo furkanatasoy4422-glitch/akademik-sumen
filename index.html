@@ -672,13 +672,23 @@
    // ==========================================
     // 2. PERSISTENCE & VERİTABANI KÖPRÜSÜ
     // ==========================================
+    let cloudSaveTimeout = null;
+
     function saveLocal() {
-      setSyncStatus('saving');
+      setSyncStatus('saving', 'Kaydediliyor...');
       try {
         localStorage.setItem(STORE_KEY, JSON.stringify(STATE));
         setTimeout(() => setSyncStatus('synced'), 400);
       } catch (e) {
         setSyncStatus('error', 'Yerel Kayıt Hatası');
+      }
+
+      // Eğer Google ile giriş yapılmışsa, veriyi anında buluta da yedekle
+      if (STATE.googleUser && supabaseClient) {
+        if (cloudSaveTimeout) clearTimeout(cloudSaveTimeout);
+        cloudSaveTimeout = setTimeout(() => {
+          syncAllToCloud();
+        }, 800);
       }
     }
 
@@ -695,11 +705,12 @@
     async function initSupabase() {
       if (!window.supabase) return;
       supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      
       const { data } = await supabaseClient.auth.getSession();
-      if (data && data.session) {
+      if (data && data.session && data.session.user) {
         setLoggedInUser(data.session.user);
-        await pullCloudData();
         dismissLandingScreen();
+        await pullCloudData();
       } else {
         setLoggedInUser(null);
       }
@@ -740,92 +751,58 @@
       window.location.reload();
     }
 
+    // TÜM VERİYİ BULUTTAN ÇEKER (Renkler, Odaklar, Takvim Dahil)
     async function pullCloudData() {
       if (!supabaseClient || !STATE.googleUser) return;
       try {
         setSyncStatus('saving', 'Buluttan Alınıyor...');
-        const { data: logsData } = await supabaseClient.from('habit_logs').select('*');
-        if (logsData && Array.isArray(logsData)) {
-          logsData.forEach(row => {
-            const d = row.log_date;
-            if (!STATE.dayLogs[d]) STATE.dayLogs[d] = { hours: {}, journals: [], completed: [] };
-            let parsedSub = [];
-            try { parsedSub = JSON.parse(row.subtopic || '[]'); } catch (e) {}
-            
-            if (row.duration_minutes > 0) {
-              STATE.dayLogs[d].hours[`area-${row.habit_id}`] = row.duration_minutes;
-            }
-            if (Array.isArray(parsedSub)) {
-              parsedSub.forEach(item => {
-                if (item.subtaskId && item.minutes > 0) {
-                  STATE.dayLogs[d].hours[`sub-${item.subtaskId}`] = item.minutes;
-                }
-              });
-            }
-            if (row.notes && !STATE.dayLogs[d].journals.includes(row.notes)) {
-              STATE.dayLogs[d].journals.push(row.notes);
-            }
-          });
-        }
+        const { data, error } = await supabaseClient
+          .from('user_states')
+          .select('state_data')
+          .eq('user_id', STATE.googleUser.id)
+          .single();
 
-        const { data: tasksData } = await supabaseClient.from('tasks').select('*');
-        if (tasksData && Array.isArray(tasksData)) {
-          tasksData.forEach(t => {
-            let targetArea = STATE.areas.find(a => a.id === t.category) || STATE.areas[0];
-            if (!targetArea) return;
-            const exists = targetArea.subtasks.some(s => String(s.id) === String(t.id));
-            if (!exists) {
-              targetArea.subtasks.push({
-                id: t.id,
-                title: t.title,
-                chained: true,
-                stepMins: 45,
-                completedShortTerm: !!t.is_completed
-              });
-            }
-          });
+        if (data && data.state_data) {
+          // Buluttaki tam veriyi alıp yerel belleğe yazar
+          STATE = Object.assign(STATE, data.state_data);
+          STATE.googleUser = { id: STATE.googleUser.id, name: STATE.googleUser.name, email: STATE.googleUser.email };
+          localStorage.setItem(STORE_KEY, JSON.stringify(STATE));
+          renderAll();
+          setSyncStatus('synced', 'Bulut Senkronize');
+        } else {
+          // İlk defa giriyorsa elindeki hazır şablonu buluta yollar
+          await syncAllToCloud();
         }
-        saveLocal();
-        renderAll();
-        setSyncStatus('synced', 'Bulut Senkronize');
       } catch (err) {
+        console.warn('Bulut çekme:', err);
+        setSyncStatus('synced', 'Hazır');
+      }
+    }
+
+    // TÜM VERİYİ TEK SEFERDE BULUTA EŞİTLER
+    async function syncAllToCloud() {
+      if (!supabaseClient || !STATE.googleUser) return;
+      setSyncStatus('saving', 'Buluta Yazılıyor...');
+      try {
+        const payload = {
+          user_id: STATE.googleUser.id,
+          state_data: STATE,
+          updated_at: new Date().toISOString()
+        };
+        await supabaseClient.from('user_states').upsert(payload, { onConflict: 'user_id' });
+        setSyncStatus('synced', 'Bulut Senkronize');
+      } catch (e) {
+        console.warn('Buluta yazma hatası:', e);
         setSyncStatus('error', 'Bulut Hatası');
       }
     }
 
     async function pushDayLogToCloud(dateStr, areaId, totalMinutes, noteText, subtasksArray) {
-      if (!supabaseClient || !STATE.googleUser) return;
-      setSyncStatus('saving', 'Kaydediliyor...');
-      try {
-        await supabaseClient.from('habit_logs').upsert({
-          habit_id: String(areaId),
-          user_id: STATE.googleUser.id,
-          log_date: dateStr,
-          duration_minutes: totalMinutes,
-          notes: noteText || '',
-          subtopic: JSON.stringify(subtasksArray || [])
-        }, { onConflict: 'habit_id,log_date' });
-        setSyncStatus('synced', 'Bulut Senkronize');
-      } catch (e) {
-        setSyncStatus('error', 'Bulut Hatası');
-      }
+      saveLocal(); // Artık otomatik olarak tek merkezden buluta gidecek
     }
 
     async function pushSubtaskToCloud(areaId, subtaskObj) {
-      if (!supabaseClient || !STATE.googleUser) return;
-      setSyncStatus('saving', 'Kaydediliyor...');
-      try {
-        await supabaseClient.from('tasks').insert({
-          id: subtaskObj.id,
-          title: subtaskObj.title,
-          category: String(areaId),
-          is_completed: !!subtaskObj.completedShortTerm,
-          user_id: STATE.googleUser.id
-        });
-        setSyncStatus('synced', 'Bulut Senkronize');
-      } catch (e) {
-        setSyncStatus('error', 'Bulut Hatası');
-      }
+      saveLocal();
     }
 
     function setSyncStatus(status, text) {
