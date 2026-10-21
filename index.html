@@ -250,18 +250,23 @@
         <i id="themeToggleIcon" data-lucide="moon" class="w-4 h-4"></i>
       </button>
 
-      <!-- Supabase Gerçek Google Giriş Butonu -->
-      <button id="googleAuthBtn" onclick="handleSupabaseGoogleAuth()" class="flex items-center gap-2 bg-white hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-xl text-xs font-bold shadow-sm transition">
-        <svg class="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24">
-          <path fill="#EA4335" d="M12 5c1.6 0 3 .6 4.1 1.7l3.1-3.1C17.3 1.8 14.8 1 12 1 7.4 1 3.5 3.6 1.6 7.4l3.7 2.8C6.2 7.2 8.9 5 12 5z"/>
-          <path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5c-.3 1.5-1.1 2.8-2.4 3.6l3.7 2.9c2.2-2 3.7-5 3.7-8.7z"/>
-          <path fill="#FBBC05" d="M5.3 14.8c-.2-.8-.4-1.6-.4-2.5s.2-1.7.4-2.5L1.6 7C.6 9 0 11.2 0 13.5s.6 4.5 1.6 6.5l3.7-2.9z"/>
-          <path fill="#34A853" d="M12 24c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3.1 0-5.8-2.1-6.7-5l-3.7 2.9C3.5 21.1 7.4 24 12 24z"/>
-        </svg>
-        <span id="googleAuthBtnText">Google ile Giriş</span>
-      </button>
-    </div>
-  </header>
+      <!-- Kullanıcı Durum Alanı & Giriş / Çıkış Butonları -->
+      <div id="authContainer" class="flex items-center gap-1.5">
+        <button id="googleLoginBtn" onclick="loginWithGoogle()" class="flex items-center gap-2 bg-white hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-xl text-xs font-bold shadow-sm transition">
+          <svg class="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24">
+            <path fill="#EA4335" d="M12 5c1.6 0 3 .6 4.1 1.7l3.1-3.1C17.3 1.8 14.8 1 12 1 7.4 1 3.5 3.6 1.6 7.4l3.7 2.8C6.2 7.2 8.9 5 12 5z"/>
+            <path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5c-.3 1.5-1.1 2.8-2.4 3.6l3.7 2.9c2.2-2 3.7-5 3.7-8.7z"/>
+            <path fill="#FBBC05" d="M5.3 14.8c-.2-.8-.4-1.6-.4-2.5s.2-1.7.4-2.5L1.6 7C.6 9 0 11.2 0 13.5s.6 4.5 1.6 6.5l3.7-2.9z"/>
+            <path fill="#34A853" d="M12 24c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3.1 0-5.8-2.1-6.7-5l-3.7 2.9C3.5 21.1 7.4 24 12 24z"/>
+          </svg>
+          <span>Google ile Giriş</span>
+        </button>
+
+        <div id="userProfileBox" class="hidden items-center gap-2 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2.5 py-1 rounded-xl text-xs">
+          <span id="userNameText" class="font-bold text-slate-700 dark:text-slate-200 truncate max-w-[120px]">Kullanıcı</span>
+          <button onclick="logoutApp()" title="Çıkış Yap" class="text-rose-500 hover:text-rose-600 font-extrabold text-[11px] px-1.5 py-0.5 rounded hover:bg-rose-50 dark:hover:bg-rose-950/40 transition">Çıkış</button>
+        </div>
+      </div>
 
   <!-- ANA GÖVDE -->
   <main class="flex-1 w-full max-w-[1800px] mx-auto p-3 md:p-5 grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
@@ -662,7 +667,7 @@
     ];
     let currentQuoteIdx = 0;
 
-    // ==========================================
+   // ==========================================
     // 2. PERSISTENCE & VERİTABANI KÖPRÜSÜ
     // ==========================================
     function saveLocal() {
@@ -692,45 +697,51 @@
       if (data && data.session) {
         setLoggedInUser(data.session.user);
         await pullCloudData();
+        dismissLandingScreen();
+      } else {
+        setLoggedInUser(null);
       }
     }
 
     function setLoggedInUser(user) {
+      const loginBtn = document.getElementById('googleLoginBtn');
+      const profileBox = document.getElementById('userProfileBox');
+      const nameEl = document.getElementById('userNameText');
+
       if (!user) {
         STATE.googleUser = null;
-        document.getElementById('googleAuthBtnText').innerText = 'Google ile Giriş';
+        if (loginBtn) loginBtn.classList.remove('hidden');
+        if (profileBox) { profileBox.classList.add('hidden'); profileBox.classList.remove('flex'); }
         return;
       }
       const email = user.email || 'kullanici';
       const name = user.user_metadata?.full_name || email.split('@')[0];
       STATE.googleUser = { id: user.id, name, email };
-      document.getElementById('googleAuthBtnText').innerText = name;
+      
+      if (loginBtn) loginBtn.classList.add('hidden');
+      if (profileBox) { profileBox.classList.remove('hidden'); profileBox.classList.add('flex'); }
+      if (nameEl) nameEl.innerText = name;
     }
 
-    async function handleSupabaseGoogleAuth() {
+    async function loginWithGoogle() {
       if (!supabaseClient) return;
-      if (STATE.googleUser) {
-        if (confirm("Oturumu kapatmak istiyor musunuz? Tüm oturum ve yerel veriler temizlenecektir.")) {
-          await supabaseClient.auth.signOut();
-          
-          // Tarayıcıdaki tüm yerel kayıtları ve oturum izlerini siler
-          localStorage.removeItem(STORE_KEY);
-          sessionStorage.removeItem('foco_skip_login');
-          
-          // Sayfayı tertemiz baştan yükleyip giriş ekranına yönlendirir
-          window.location.reload();
-        }
-        return;
-      }
       await supabaseClient.auth.signInWithOAuth({
         provider: 'google',
         options: { redirectTo: window.location.origin }
       });
     }
 
+    async function logoutApp() {
+      if (supabaseClient) await supabaseClient.auth.signOut();
+      localStorage.removeItem(STORE_KEY);
+      sessionStorage.removeItem('foco_skip_login');
+      window.location.reload();
+    }
+
     async function pullCloudData() {
       if (!supabaseClient || !STATE.googleUser) return;
       try {
+        setSyncStatus('saving', 'Buluttan Alınıyor...');
         const { data: logsData } = await supabaseClient.from('habit_logs').select('*');
         if (logsData && Array.isArray(logsData)) {
           logsData.forEach(row => {
@@ -774,14 +785,15 @@
         }
         saveLocal();
         renderAll();
+        setSyncStatus('synced', 'Bulut Senkronize');
       } catch (err) {
-        console.warn('Buluttan veri çekilemedi:', err);
+        setSyncStatus('error', 'Bulut Hatası');
       }
     }
 
     async function pushDayLogToCloud(dateStr, areaId, totalMinutes, noteText, subtasksArray) {
       if (!supabaseClient || !STATE.googleUser) return;
-      setSyncStatus('saving', 'Buluta Yazılıyor...');
+      setSyncStatus('saving', 'Kaydediliyor...');
       try {
         await supabaseClient.from('habit_logs').upsert({
           habit_id: String(areaId),
@@ -793,14 +805,13 @@
         }, { onConflict: 'habit_id,log_date' });
         setSyncStatus('synced', 'Bulut Senkronize');
       } catch (e) {
-        console.warn('Supabase log kayıt hatası:', e);
         setSyncStatus('error', 'Bulut Hatası');
       }
     }
 
     async function pushSubtaskToCloud(areaId, subtaskObj) {
       if (!supabaseClient || !STATE.googleUser) return;
-      setSyncStatus('saving', 'Buluta Yazılıyor...');
+      setSyncStatus('saving', 'Kaydediliyor...');
       try {
         await supabaseClient.from('tasks').insert({
           id: subtaskObj.id,
@@ -811,7 +822,6 @@
         });
         setSyncStatus('synced', 'Bulut Senkronize');
       } catch (e) {
-        console.warn('Supabase görev ekleme hatası:', e);
         setSyncStatus('error', 'Bulut Hatası');
       }
     }
@@ -832,16 +842,12 @@
       }
     }
 
-   function dismissLandingScreen() {
+    function dismissLandingScreen() {
       sessionStorage.setItem('foco_skip_login', 'true');
       const screen = document.getElementById('landingScreen');
       if (screen) screen.style.display = 'none';
     }
-
-    async function handleLandingGoogleLogin() {
-      dismissLandingScreen();
-      await handleSupabaseGoogleAuth();
-    }
+    
     // ==========================================
     // 3. YARDIMCI VE BİÇİMLENDİRME METOTLARI
     // ==========================================
