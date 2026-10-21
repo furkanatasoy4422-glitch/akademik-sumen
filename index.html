@@ -1,725 +1,1352 @@
 <!DOCTYPE html>
-<html lang="tr" class="light">
+<html lang="tr" data-theme="dark" class="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>FocoDesk</title>
-  <!-- Tailwind CSS -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Google Fonts: Inter -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <!-- Lucide Icons -->
-  <script src="https://unpkg.com/lucide@latest"></script>
-  <!-- Canvas Confetti -->
-  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
-
+  <title>FocoDesk | Odak & Kesintisiz Zincir Takvimi</title>
+  
   <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          fontFamily: { sans: ['Inter', 'sans-serif'] }
-        }
-      }
-    }
+    (function () {
+      try {
+        var t = localStorage.getItem('foco_theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', t);
+        document.documentElement.classList.toggle('dark', t === 'dark');
+      } catch (e) {}
+    })();
   </script>
 
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config = { darkMode: 'class' };</script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
   <style>
-    ::-webkit-scrollbar { width: 5px; height: 5px; }
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.35); border-radius: 9999px; }
-
+    :root[data-theme="dark"] {
+      --bg: #0d1117;
+      --card: #161b22;
+      --border: #30363d;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --input: #0d1117;
+      --hover: #21262d;
+      --soft: rgba(255,255,255,0.03);
+    }
+    :root[data-theme="light"] {
+      --bg: #f6f8fa;
+      --card: #ffffff;
+      --border: #d0d7de;
+      --text: #1f2328;
+      --muted: #656d76;
+      --input: #ffffff;
+      --hover: #f3f4f6;
+      --soft: rgba(0,0,0,0.02);
+    }
+    * { box-sizing: border-box; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    .card { background: var(--card); border: 1px solid var(--border); }
+    .field { background: var(--input); border: 1px solid var(--border); color: var(--text); }
+    .field::placeholder { color: var(--muted); }
+    .muted { color: var(--muted); }
+    .ghost:hover { background: var(--hover); }
+    .custom-scroll::-webkit-scrollbar { width: 4px; height: 4px; }
+    .custom-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+    .custom-scroll::-webkit-scrollbar-track { background: transparent; }
+    
     .cal-cell {
-      border-right: 1px solid rgba(226, 232, 240, 0.7);
-      border-bottom: 1px solid rgba(226, 232, 240, 0.7);
+      position: relative;
+      background: var(--card);
+      border-right: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      min-width: 38px;
+      transition: background-color .15s ease;
     }
-    .dark .cal-cell {
-      border-right: 1px solid rgba(30, 41, 59, 0.8);
-      border-bottom: 1px solid rgba(30, 41, 59, 0.8);
+    .cal-cell:hover { background: var(--hover); }
+    .chain-slice {
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 10px;
+      transition: all .2s ease;
     }
-    .cal-cell:nth-child(7n) { border-right: none; }
-
-    .ribbon-strip {
-      transition: background-color 0.2s ease, opacity 0.2s ease;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    @keyframes floatUpEmoji {
-      0% { transform: translateY(0) scale(0.6) rotate(0deg); opacity: 1; }
-      70% { opacity: 1; }
-      100% { transform: translateY(-220px) scale(1.35) rotate(18deg); opacity: 0; }
-    }
-    .emoji-particle {
-      position: fixed;
-      z-index: 9999;
-      pointer-events: none;
-      font-size: 2rem;
-      animation: floatUpEmoji 1.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-    }
-
-    .draggable-item { cursor: grab; }
-    .draggable-item:active { cursor: grabbing; }
-    .drag-over-target { outline: 2px dashed #6366f1; outline-offset: 2px; }
+    .chain-slice:hover { filter: brightness(1.2); }
+    
+    .drag-over { border-top: 2px solid #3b82f6 !important; }
   </style>
 </head>
-<body class="bg-[#f8fafc] text-slate-800 dark:bg-[#0b0f17] dark:text-slate-100 min-h-screen flex flex-col font-sans antialiased transition-colors duration-200">
-
-  <!-- BİLDİRİM & GERİ AL TOAST BANNER -->
-  <div id="celebrationToast" class="fixed top-16 left-1/2 -translate-x-1/2 z-50 hidden bg-slate-900/95 dark:bg-indigo-950/95 backdrop-blur-md text-white px-5 py-3.5 rounded-2xl shadow-2xl flex items-center gap-4 border border-white/15 transition-all">
-    <span id="toastEmoji" class="text-2xl">🎉</span>
-    <div>
-      <div id="toastTitle" class="text-xs md:text-sm font-extrabold">Görev Tamamlandı!</div>
-      <div id="toastSub" class="text-[11px] opacity-85">Arşive ve bugünün takvimine işlendi.</div>
-    </div>
-    <button id="toastUndoBtn" onclick="undoLastFinishAction()" class="hidden ml-2 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-extrabold transition shadow-sm flex items-center gap-1 shrink-0">
-      <i data-lucide="undo-2" class="w-3.5 h-3.5"></i>
-      <span>Geri Al</span>
-    </button>
-  </div>
-
-  <!-- RENK SEÇİCİ POPOVER -->
-  <div id="colorPickerModal" class="fixed inset-0 bg-slate-900/30 backdrop-blur-[2px] z-50 hidden items-center justify-center p-4">
-    <div class="bg-white dark:bg-[#151e31] border border-slate-200 dark:border-slate-700 rounded-2xl w-full max-w-xs p-4 shadow-2xl">
-      <div class="flex items-center justify-between mb-3">
-        <span class="text-xs font-extrabold text-slate-800 dark:text-white">Görev Rengini Seç</span>
-        <button onclick="closeColorPickerModal()" class="text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-4 h-4"></i></button>
-      </div>
-      <div id="modalColorGrid" class="grid grid-cols-8 gap-2 mb-3"></div>
-      <div class="flex items-center justify-between pt-2.5 border-t border-slate-100 dark:border-slate-800">
-        <label class="text-xs font-bold text-slate-600 dark:text-slate-300 flex items-center gap-2 cursor-pointer">
-          <span>🎨 Özel Renk:</span>
-          <input id="modalCustomColorInput" type="color" onchange="applyCustomColorFromModal(this.value)" class="w-8 h-7 rounded cursor-pointer border-0 bg-transparent">
-        </label>
-        <button onclick="closeColorPickerModal()" class="px-3 py-1 bg-slate-800 dark:bg-slate-700 text-white rounded-lg text-xs font-bold">Tamam</button>
-      </div>
-    </div>
-  </div>
+<body class="min-h-screen p-3 md:p-5 flex flex-col gap-4">
 
   <!-- ÜST BAR -->
-  <header class="w-full bg-white/95 dark:bg-[#111827]/95 backdrop-blur-md border-b border-[#e2e8f0] dark:border-slate-800 px-4 md:px-6 py-2.5 flex flex-wrap items-center justify-between gap-3 sticky top-0 z-30">
-    <div class="flex items-center gap-2.5">
-      <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-600 via-indigo-600 to-violet-700 flex items-center justify-center text-white shadow-sm ring-1 ring-indigo-400/30 group" title="FocoDesk • Zinciri Kırma">
-        <svg class="w-5 h-5 transition-transform duration-300 group-hover:rotate-12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M18.36 14.5A7 7 0 1 1 11.2 5.05" stroke="currentColor" stroke-width="1.65" stroke-linecap="round"/>
-          <path d="M14.8 16.2A4.5 4.5 0 1 1 9.5 7.8" stroke="currentColor" stroke-width="1.15" stroke-linecap="round" stroke-opacity="0.55"/>
-          <path d="M14.5 4.3L16.9 3.2" stroke="#fbbf24" stroke-width="1.65" stroke-linecap="round"/>
-          <path d="M18.6 6.8L20.2 5.4" stroke="#fbbf24" stroke-width="1.65" stroke-linecap="round"/>
-          <circle cx="16.8" cy="5.8" r="1.1" fill="#fbbf24"/>
+  <header class="card rounded-2xl px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 shadow-sm">
+    <div class="flex items-center gap-3">
+      <!-- Kopuk Halka Logosu -->
+      <div class="w-8 h-8 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-400 group cursor-pointer transition hover:rotate-45" title="FocoDesk">
+        <svg class="w-5 h-5 stroke-current fill-none stroke-[2.2]" viewBox="0 0 24 24">
+          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" stroke-dasharray="10 4" />
         </svg>
       </div>
-      <h1 contenteditable="true" spellcheck="false" class="text-base font-extrabold tracking-tight text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500/30 rounded px-1 -ml-1 cursor-text">FocoDesk</h1>
+      <div>
+        <h1 class="text-sm font-bold tracking-tight">FocoDesk</h1>
+        <p class="text-[10px] muted font-medium">Kesintisiz Zincir & Odak Masası</p>
+      </div>
     </div>
 
-    <div class="flex flex-wrap items-center gap-2">
-      <!-- Zamanlayıcı -->
-      <div class="relative">
-        <button onclick="toggleTimerPopover()" class="flex items-center gap-2 bg-slate-100/90 hover:bg-indigo-50 dark:bg-slate-800/80 dark:hover:bg-indigo-950/50 text-slate-700 hover:text-indigo-600 dark:text-slate-200 dark:hover:text-indigo-400 px-3 py-1.5 rounded-xl text-xs font-bold transition border border-slate-200/60 dark:border-slate-700/60" title="Zamanlayıcıyı açmak için tıkla">
-          <i data-lucide="clock" class="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400"></i>
-          <span id="liveDateText">20 Eki Sal</span>
-          <span class="opacity-30">|</span>
-          <span id="liveClockText" class="font-mono">09:30:00</span>
-          <span id="timerRunningDot" class="hidden w-2 h-2 rounded-full bg-rose-500 animate-ping"></span>
-        </button>
+    <!-- Canlı Saat, Kompakt Hava Durumu ve Kontroller -->
+    <div class="flex items-center gap-2 flex-wrap">
+      <!-- Zamanlayıcı Popover Tetikleyici Saat Butonu -->
+      <button onclick="toggleTimerPopover()" id="live-clock-btn" class="px-2.5 py-1.5 rounded-xl field text-xs font-semibold tabular-nums flex items-center gap-1.5 hover:border-blue-500 transition" title="Zamanlayıcıyı Aç">
+        <i class="far fa-clock text-blue-400 text-xs"></i>
+        <span id="live-clock-text">--:--:--</span>
+      </button>
 
-        <div id="timerPopover" class="hidden absolute right-0 mt-2 w-72 bg-white dark:bg-[#151e31] border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl p-4 z-50">
-          <div class="flex items-center justify-between mb-2">
-            <span class="text-xs font-extrabold text-slate-800 dark:text-white flex items-center gap-1.5">
-              <i data-lucide="timer" class="w-3.5 h-3.5 text-indigo-600"></i> Zamanlayıcı
-            </span>
-            <div class="flex items-center gap-1.5">
-              <button onclick="playTimerAlarmSound()" title="Alarm Sesini Test Et" class="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-950 text-slate-600 dark:text-slate-300 flex items-center gap-1">
-                <i data-lucide="volume-2" class="w-3 h-3 text-indigo-500"></i> Ses
-              </button>
-              <button onclick="toggleTimerPopover()" class="text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-4 h-4"></i></button>
-            </div>
-          </div>
-          <div class="bg-slate-50 dark:bg-slate-900 rounded-xl py-3 my-2 text-center border border-slate-200/60 dark:border-slate-800">
-            <div id="timerDisplay" class="font-mono text-3xl font-black text-slate-900 dark:text-white">25:00</div>
-          </div>
-          <div class="flex items-center gap-2 mb-2.5">
-            <label for="timerCustomMinsInput" class="text-[11px] font-bold text-slate-500 dark:text-slate-400 shrink-0">Süre (Dakika):</label>
-            <input id="timerCustomMinsInput" type="number" min="1" max="999" value="25" oninput="setTimerCustomMins(this.value)" onkeydown="if(event.key==='Enter') startPauseTimer()" placeholder="Dakika girin..." class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1.5 text-xs font-extrabold text-center outline-none focus:border-indigo-500">
-          </div>
-          <select id="timerTaskSelect" class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1.5 text-xs font-semibold outline-none mb-2.5"></select>
-          <div class="flex gap-1.5">
-            <button id="timerStartBtn" onclick="startPauseTimer()" class="flex-1 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition">Başlat</button>
-            <button onclick="resetTimer()" class="px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300">Sıfırla</button>
-            <button onclick="logTimerToToday()" class="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition" title="Süreyi bugüne kaydet">Kaydet</button>
-          </div>
-        </div>
+      <!-- Kompakt Sivas Hava Durumu (Hover Genişleme) -->
+      <div id="weather-box" class="field rounded-xl px-2.5 py-1.5 text-xs font-semibold flex items-center gap-1.5 transition-all duration-200 cursor-default" onmouseenter="expandWeather(true)" onmouseleave="expandWeather(false)">
+        <i id="weather-icon" class="fas fa-cloud-sun text-amber-400 text-xs"></i>
+        <span id="weather-text" class="tabular-nums">Sivas • --°C</span>
       </div>
 
-      <!-- Hava Durumu -->
-      <div id="weatherWidgetBox" onmouseenter="hoverWeatherBox(true)" onmouseleave="hoverWeatherBox(false)" class="flex items-center gap-1.5 bg-slate-100/90 dark:bg-slate-800/80 px-2.5 py-1.5 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 border border-slate-200/60 dark:border-slate-700/60 transition-all" title="Parçalı Bulutlu">
-        <i data-lucide="cloud-sun" class="w-3.5 h-3.5 text-amber-500 shrink-0"></i>
-        <select id="weatherSelect" onchange="onWeatherCityChange()" class="bg-transparent outline-none cursor-pointer font-bold">
-          <option value="Sivas" data-short="Sivas • 11°C" data-cond="Parçalı Bulutlu">Sivas • 11°C</option>
-          <option value="Ankara" data-short="Ankara • 14°C" data-cond="Açık">Ankara • 14°C</option>
-          <option value="İstanbul" data-short="İstanbul • 17°C" data-cond="Rüzgarlı">İstanbul • 17°C</option>
-          <option value="İzmir" data-short="İzmir • 22°C" data-cond="Güneşli">İzmir • 22°C</option>
-          <option value="Antalya" data-short="Antalya • 24°C" data-cond="Açık">Antalya • 24°C</option>
-        </select>
-      </div>
-
-      <!-- Arşiv -->
-      <button onclick="openArchiveModal()" class="flex items-center bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/50 text-amber-700 dark:text-amber-300 border border-amber-200/70 dark:border-amber-800/60 px-3 py-1.5 rounded-xl text-xs font-bold transition" title="Tamamlananlar Arşivi">
-        <span>Arşiv</span>
+      <!-- Arşiv Butonu -->
+      <button onclick="openArchiveModal()" class="px-2.5 py-1.5 rounded-xl text-xs font-semibold transition ghost border border-[var(--border)] text-amber-400 flex items-center gap-1" title="Tamamlananlar Arşivi">
+        <i class="fas fa-box-archive text-xs"></i> Arşiv
       </button>
 
-      <!-- Süre Modu -->
-      <button id="durationModeBtn" onclick="toggleDurationDisplayMode()" class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 flex items-center justify-center text-xs border border-slate-200/60 dark:border-slate-700/60 transition" title="Süre Görünümü">
-        <span id="durationModeEmoji">⏳</span>
+      <!-- Süre Formatı Kum Saati (Saat/Dk vs Dk) -->
+      <button onclick="toggleDurationFormat()" id="btn-duration-format" class="w-8 h-8 rounded-xl ghost border border-[var(--border)] flex items-center justify-center text-xs" title="Süre Formatı (Saat/Dk)">
+        ⏳
       </button>
 
-      <!-- İndir -->
-      <div class="relative">
-        <button onclick="toggleExportMenu()" title="Veriyi İndir" class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 border border-slate-200/60 dark:border-slate-700/60 transition">
-          <i data-lucide="download" class="w-4 h-4"></i>
-        </button>
-        <div id="exportMenu" class="hidden absolute right-0 mt-2 w-56 bg-white dark:bg-[#151e31] border border-slate-200 dark:border-slate-700 rounded-2xl shadow-xl p-2 z-50 flex flex-col gap-1">
-          <button onclick="exportData('txt')" class="w-full text-left px-3 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-bold flex items-center justify-between">
-            <span>📄 Analiz Raporu (.TXT)</span>
-            <span class="text-[10px] text-indigo-600 font-semibold">AI Uygun</span>
-          </button>
-          <button onclick="exportData('json')" class="w-full text-left px-3 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-bold flex items-center justify-between">
-            <span>🗂️ Tam Yedek (.JSON)</span>
-            <span class="text-[10px] text-slate-400">Veri</span>
-          </button>
-        </div>
-      </div>
-
-      <!-- Tema -->
-      <button onclick="toggleTheme()" title="Aydınlık / Karanlık Mod" class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 border border-slate-200/60 dark:border-slate-700/60 transition">
-        <i id="themeToggleIcon" data-lucide="moon" class="w-4 h-4"></i>
+      <!-- Veriyi İndir (AI ve Analiz İncelemesi İçin) -->
+      <button onclick="exportDataPrompt()" class="w-8 h-8 rounded-xl ghost border border-[var(--border)] flex items-center justify-center text-xs muted hover:text-[var(--text)]" title="Verileri İndir (JSON/TXT)">
+        <i class="fas fa-arrow-down-to-bracket text-xs"></i>
       </button>
 
-      <!-- Google Giriş -->
-      <button id="googleAuthBtn" onclick="openGoogleAuthModal()" class="flex items-center gap-2 bg-white hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-xl text-xs font-bold shadow-sm transition">
-        <svg class="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24">
-          <path fill="#EA4335" d="M12 5c1.6 0 3 .6 4.1 1.7l3.1-3.1C17.3 1.8 14.8 1 12 1 7.4 1 3.5 3.6 1.6 7.4l3.7 2.8C6.2 7.2 8.9 5 12 5z"/>
-          <path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5c-.3 1.5-1.1 2.8-2.4 3.6l3.7 2.9c2.2-2 3.7-5 3.7-8.7z"/>
-          <path fill="#FBBC05" d="M5.3 14.8c-.2-.8-.4-1.6-.4-2.5s.2-1.7.4-2.5L1.6 7C.6 9 0 11.2 0 13.5s.6 4.5 1.6 6.5l3.7-2.9z"/>
-          <path fill="#34A853" d="M12 24c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3.1 0-5.8-2.1-6.7-5l-3.7 2.9C3.5 21.1 7.4 24 12 24z"/>
-        </svg>
-        <span id="googleAuthBtnText">Google ile Giriş</span>
+      <!-- Tema Değiştirici -->
+      <button onclick="toggleTheme()" id="theme-btn" title="Tema" class="w-8 h-8 rounded-xl ghost border border-[var(--border)] flex items-center justify-center">
+        <i class="fas fa-sun text-xs"></i>
       </button>
+
+      <!-- Google Giriş Butonu -->
+      <button id="auth-btn" onclick="handleAuthClick()" class="px-3 py-1.5 rounded-xl text-xs font-semibold transition ghost border border-[var(--border)] flex items-center gap-1.5">
+        <i class="fab fa-google text-slate-400"></i> <span id="auth-btn-text">Google ile Giriş</span>
+      </button>
+
+      <!-- Gizli AI Butonları (Kod içinde tutulur, display:none) -->
+      <button id="cfg-modal-btn" onclick="toggleConfigModal()" class="hidden"></button>
+      <button id="ai-chat-btn" onclick="toggleChatModal()" class="hidden"></button>
     </div>
   </header>
 
-  <!-- ANA GÖVDE -->
-  <main class="flex-1 w-full max-w-[1800px] mx-auto p-3 md:p-5 grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+  <!-- GERİ AL (UNDO) BİLDİRİM BARI -->
+  <div id="undo-toast" class="fixed top-4 right-4 z-50 transform translate-y-[-120%] opacity-0 transition-all duration-300 card px-4 py-2.5 rounded-xl border border-blue-500/40 shadow-2xl flex items-center gap-3 text-xs">
+    <span id="undo-msg" class="font-medium">İşlem tamamlandı.</span>
+    <button onclick="executeUndo()" class="px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg transition">Geri Al</button>
+  </div>
 
-    <!-- SOL PANEL -->
-    <aside class="lg:col-span-3 flex flex-col gap-3.5 w-full">
-      <div id="focusGroupsContainer" class="flex flex-col gap-3.5"></div>
-
-      <div>
-        <button id="showNewGroupBtn" onclick="toggleNewGroupForm()" class="w-full py-2 px-3 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 hover:border-indigo-500 text-xs font-bold text-slate-500 dark:text-slate-400 bg-white/50 dark:bg-[#111827]/50 flex items-center justify-center gap-1.5 transition">
-          <i data-lucide="folder-plus" class="w-3.5 h-3.5"></i>
-          <span>+ Yeni Odak Penceresi Ekle</span>
-        </button>
-        <div id="newGroupFormBox" class="hidden mt-1.5 p-3 rounded-2xl bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 shadow-sm">
-          <div class="text-[11px] font-bold text-slate-500 mb-1.5">Yeni Pencere / Kategori Başlığı:</div>
-          <div class="flex gap-1.5">
-            <input id="newGroupTitleInput" type="text" placeholder="Örn: Kişisel Zincirler..." onkeydown="if(event.key==='Enter') createNewFocusGroup()" class="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1.5 text-xs outline-none focus:border-indigo-500">
-            <button onclick="createNewFocusGroup()" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold">Oluştur</button>
-            <button onclick="toggleNewGroupForm()" class="px-2 py-1.5 text-xs font-semibold text-slate-400 hover:text-slate-600">İptal</button>
+  <!-- ORTA BÖLÜM: ÜST KARTLAR (Söz/Not + Dikey 5 Noktalı Analiz) -->
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <!-- Sol Kart: İkili Yapı (Motivasyon Sözü & Hızlı Serbest Not) -->
+    <div class="card rounded-2xl p-4 flex flex-col justify-between relative overflow-hidden min-h-[140px]">
+      <div class="flex-1 flex flex-col justify-center pr-6">
+        <div id="quote-section">
+          <p id="quote-text" class="text-xs md:text-sm font-medium italic leading-relaxed">"Süreklilik, küçük adımların birleşerek inşa ettiği yenilmez bir disiplindir."</p>
+          <span id="quote-author" class="text-[11px] font-semibold text-blue-400 mt-2 block">— Marcus Aurelius</span>
+        </div>
+        <div id="note-section" class="hidden flex flex-col gap-1.5 h-full">
+          <div class="flex items-center justify-between">
+            <span id="free-note-title" class="text-[11px] font-bold uppercase tracking-wider muted cursor-pointer hover:text-blue-400 flex items-center gap-1" onclick="renameFreeNoteTitle()">
+              <span>Hızlı Serbest Not</span> <i class="fas fa-pencil text-[9px]"></i>
+            </span>
+            <span id="free-note-status" class="text-[9px] muted">Kayıtlı</span>
           </div>
+          <textarea id="free-note-textarea" placeholder="Aklındaki fikirleri veya günün notunu buraya karala..." class="field w-full rounded-xl p-2 text-xs resize-none focus:outline-none focus:border-blue-500 flex-1 custom-scroll" oninput="saveFreeNote()"></textarea>
         </div>
       </div>
+      <!-- Dikey 2 Nokta Kontrolü -->
+      <div class="absolute right-2.5 top-1/2 -translate-y-1/2 flex flex-col gap-2">
+        <button onclick="switchQuoteCard(0)" id="quote-dot-0" class="w-1.5 h-4 rounded-full bg-blue-500 transition-all"></button>
+        <button onclick="switchQuoteCard(1)" id="quote-dot-1" class="w-1.5 h-1.5 rounded-full bg-[var(--border)] transition-all"></button>
+      </div>
+    </div>
 
-      <!-- ETİKETLER -->
-      <section class="bg-white dark:bg-[#111827] rounded-2xl border border-[#e2e8f0] dark:border-slate-800 shadow-sm overflow-hidden">
-        <div class="px-4 py-3 flex items-center justify-between border-b border-slate-100 dark:border-slate-800">
-          <h2 class="text-xs font-extrabold uppercase tracking-wider text-slate-600 dark:text-slate-300">Etiketler</h2>
-        </div>
-        <div id="tagsCardBody" class="p-3 flex flex-col gap-2.5">
-          <div id="tagsBadgeList" class="flex flex-wrap gap-1.5"></div>
-          <div class="flex gap-1.5">
-            <input id="customTagInput" type="text" placeholder="+ Etiket ekle (#şükür)" onkeydown="if(event.key==='Enter') addNewTag()" class="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1.5 text-xs outline-none focus:border-indigo-500">
-            <button onclick="addNewTag()" class="px-2.5 py-1.5 bg-slate-800 dark:bg-slate-700 text-white rounded-xl text-xs font-bold hover:opacity-90">Ekle</button>
+    <!-- Sağ Kart: Dikey 5 Noktalı Gerçek Zamanlı Analiz Kartı -->
+    <div class="card rounded-2xl p-4 flex flex-col justify-between relative overflow-hidden min-h-[140px]">
+      <div id="analysis-content" class="flex-1 pr-6 flex flex-col justify-center text-xs">
+        <!-- JavaScript ile 5 ekran dinamik aktarılır -->
+      </div>
+      <!-- Dikey 5 Nokta -->
+      <div class="absolute right-2.5 top-1/2 -translate-y-1/2 flex flex-col gap-1.5">
+        <button onclick="setAnalysisScreen(0)" id="dot-0" class="w-1.5 h-3 rounded-full bg-blue-500 transition-all"></button>
+        <button onclick="setAnalysisScreen(1)" id="dot-1" class="w-1.5 h-1.5 rounded-full bg-[var(--border)] transition-all"></button>
+        <button onclick="setAnalysisScreen(2)" id="dot-2" class="w-1.5 h-1.5 rounded-full bg-[var(--border)] transition-all"></button>
+        <button onclick="setAnalysisScreen(3)" id="dot-3" class="w-1.5 h-1.5 rounded-full bg-[var(--border)] transition-all"></button>
+        <button onclick="setAnalysisScreen(4)" id="dot-4" class="w-1.5 h-1.5 rounded-full bg-[var(--border)] transition-all"></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ANA GÖVDE: SOL PANEL (ODAK & ETİKETLER) + SAĞ ALAN (KESİNTİSİZ ZİNCİR TAKVİMİ) -->
+  <main class="flex flex-col lg:flex-row gap-4 flex-1 min-h-0">
+    <!-- Sol Panel: Katlanabilir Odak Alanları & Etiketler -->
+    <aside id="left-panel" class="w-full lg:w-80 flex flex-col gap-3 shrink-0">
+      <!-- Odak Alanları Penceresi -->
+      <section class="card rounded-2xl p-3.5 flex flex-col gap-2.5">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-1.5 cursor-pointer" onclick="toggleSection('area-section-body')">
+            <i id="area-section-arrow" class="fas fa-chevron-down text-[10px] muted transition-transform"></i>
+            <span class="text-[11px] font-bold uppercase tracking-wider muted">Odak Alanları</span>
           </div>
-          <div class="bg-slate-50/80 dark:bg-slate-900/60 rounded-xl p-2.5 border border-slate-200/60 dark:border-slate-800">
-            <div class="flex items-center justify-between mb-1.5">
-              <span id="activeTagHeader" class="text-[11px] font-bold text-indigo-600 dark:text-indigo-400">#şükür Notları</span>
-              <button onclick="selectTagFilter(null)" class="text-[10px] font-semibold text-slate-400 hover:text-slate-600">Tümü</button>
+          <button onclick="addNewAreaModal()" class="text-[11px] font-semibold px-2 py-0.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition">+ Yeni Alan</button>
+        </div>
+
+        <div id="area-section-body" class="flex flex-col gap-2">
+          <ul id="area-list" class="flex flex-col gap-2 max-h-[340px] overflow-y-auto custom-scroll pr-1"></ul>
+        </div>
+      </section>
+
+      <!-- Kişisel Etiketler & Günlük Hafıza (#şükür, #mutluluk vb.) -->
+      <section class="card rounded-2xl p-3.5 flex flex-col gap-2.5">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-1.5 cursor-pointer" onclick="toggleSection('tag-section-body')">
+            <i id="tag-section-arrow" class="fas fa-chevron-down text-[10px] muted transition-transform"></i>
+            <span class="text-[11px] font-bold uppercase tracking-wider muted">Etiketler & Zihin Hafızası</span>
+          </div>
+          <button onclick="addNewTagModal()" class="text-[10px] font-semibold px-1.5 py-0.5 rounded-md ghost border border-[var(--border)]">+ Etiket</button>
+        </div>
+
+        <div id="tag-section-body" class="flex flex-col gap-2">
+          <div id="tag-list" class="flex flex-wrap gap-1.5"></div>
+          <div id="tag-filter-display" class="hidden p-2 rounded-xl text-xs field flex flex-col gap-1">
+            <div class="flex items-center justify-between font-bold text-blue-400">
+              <span id="active-tag-title">#etiket</span>
+              <button onclick="clearTagFilter()" class="muted hover:text-rose-400 text-[10px]"><i class="fas fa-xmark"></i> Temizle</button>
             </div>
-            <div id="tagHistoryFeed" class="flex flex-col gap-1.5 max-h-40 overflow-y-auto text-xs"></div>
+            <ul id="tag-results-list" class="flex flex-col gap-1 max-h-28 overflow-y-auto custom-scroll text-[11px] mt-1"></ul>
           </div>
         </div>
       </section>
     </aside>
 
-    <!-- SAĞ PANEL -->
-    <div class="lg:col-span-9 flex flex-col gap-4 w-full">
-      <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
-        <!-- SOL KART: MOTİVASYON & NOT -->
-        <div class="md:col-span-4 bg-white dark:bg-[#111827] rounded-2xl border border-[#e2e8f0] dark:border-slate-800 p-4 shadow-sm flex items-stretch justify-between gap-2.5 relative min-h-[175px]">
-          <div class="flex-1 flex flex-col justify-between min-w-0">
-            <div id="leftCardSlideQuote" class="flex-1 flex flex-col justify-between">
-              <div class="flex items-start justify-between">
-                <div class="flex items-center gap-1.5">
-                  <i data-lucide="quote" class="w-4 h-4 text-indigo-500/60"></i>
-                  <span class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Disiplin & İlham</span>
-                </div>
-                <button onclick="cycleQuote()" title="Sözü Değiştir" class="w-6 h-6 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center text-slate-400 transition">
-                  <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
-                </button>
-              </div>
-              <p id="quoteContent" class="text-xs md:text-sm font-medium leading-relaxed text-slate-700 dark:text-slate-200 my-2">
-                "Zihninizin gücü, odaklandığınız şeylerin kalitesiyle ölçülür; her gün aynı disiplini korumak özgürlüktür."
-              </p>
-              <div id="quoteAuthor" class="text-xs font-extrabold text-slate-900 dark:text-indigo-400">— Marcus Aurelius</div>
+    <!-- Sağ Alan: Everyday App Stili Kesintisiz Isı Haritası & Zincir Takvimi -->
+    <section class="flex-1 flex flex-col gap-3 min-w-0">
+      <div class="card rounded-2xl p-4 flex flex-col gap-3 flex-1 overflow-hidden">
+        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] pb-3">
+          <div class="flex items-center gap-2">
+            <!-- Aylık / Haftalık Görünüm Değiştirici -->
+            <div class="flex rounded-lg overflow-hidden border border-[var(--border)] text-xs font-semibold">
+              <button id="view-monthly-btn" onclick="setCalendarView('monthly')" class="px-2.5 py-1 bg-blue-600 text-white">Aylık</button>
+              <button id="view-weekly-btn" onclick="setCalendarView('weekly')" class="px-2.5 py-1 ghost">Haftalık</button>
             </div>
 
-            <div id="leftCardSlideNotepad" class="hidden flex-1 flex flex-col justify-between h-full">
-              <div class="flex items-center justify-between mb-1.5 pb-1 border-b border-slate-100 dark:border-slate-800 gap-2">
-                <span id="freeScratchpadTitleEl" contenteditable="true" spellcheck="false" onblur="updateFreeScratchpadTitle(this.innerText)" class="text-xs font-extrabold text-slate-800 dark:text-white outline-none rounded px-1 -ml-1 cursor-text truncate">Hızlı Serbest Not</span>
-                <span class="text-[10px] font-semibold text-slate-400 shrink-0">Otomatik Kayıt</span>
-              </div>
-              <textarea id="freeScratchpadTextarea" oninput="updateFreeScratchpad(this.value)" placeholder="Aklına gelen fikirleri buraya yazabilirsin..." class="w-full flex-1 min-h-[110px] resize-none bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-800 rounded-xl p-2.5 text-xs text-slate-700 dark:text-slate-200 outline-none leading-relaxed"></textarea>
+            <!-- Ay / Hafta Gezinme Butonları -->
+            <div class="flex items-center gap-1 text-xs font-bold ml-2">
+              <button onclick="navigatePeriod(-1)" class="w-7 h-7 rounded-lg ghost flex items-center justify-center border border-[var(--border)]"><i class="fas fa-chevron-left text-[10px]"></i></button>
+              <span id="calendar-period-label" class="px-2 tabular-nums">Ekim 2026</span>
+              <button onclick="navigatePeriod(1)" class="w-7 h-7 rounded-lg ghost flex items-center justify-center border border-[var(--border)]"><i class="fas fa-chevron-right text-[10px]"></i></button>
             </div>
           </div>
-          <div class="flex flex-col items-center justify-between py-1 pl-2 border-l border-slate-100 dark:border-slate-800 select-none">
-            <button onclick="stepLeftCardSlide(-1)" class="w-6 h-6 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center text-slate-400"><i data-lucide="chevron-up" class="w-3.5 h-3.5"></i></button>
-            <div id="leftCardDotsContainer" class="flex flex-col items-center gap-2 my-1"></div>
-            <button onclick="stepLeftCardSlide(1)" class="w-6 h-6 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center text-slate-400"><i data-lucide="chevron-down" class="w-3.5 h-3.5"></i></button>
+
+          <!-- Alt Görevleri Göster Toggle & Zincir Lejantı -->
+          <div class="flex items-center gap-3 text-xs">
+            <label class="flex items-center gap-1.5 cursor-pointer muted hover:text-[var(--text)] select-none">
+              <input type="checkbox" id="toggle-subtasks-view" onchange="toggleSubtaskCalendarView(this.checked)" class="accent-blue-500 rounded">
+              <span class="text-[11px] font-semibold">Alt görevleri göster</span>
+            </label>
+            <div id="calendar-legend" class="flex flex-wrap items-center gap-2 text-[10px] muted"></div>
           </div>
         </div>
 
-        <!-- SAĞ KART: ANALİZ -->
-        <div class="md:col-span-8 bg-white dark:bg-[#111827] rounded-2xl border border-[#e2e8f0] dark:border-slate-800 p-4 shadow-sm flex items-stretch justify-between gap-3 min-h-[175px]">
-          <div class="flex-1 flex flex-col justify-between min-w-0">
-            <div class="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
-              <div class="flex items-center gap-2">
-                <span id="analysisSlideTitle" class="text-xs font-extrabold text-slate-900 dark:text-white">Alan Süreleri & Dağılım</span>
-                <span id="analysisSubBadge" class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400">Gerçek Veri</span>
-              </div>
-              <div class="bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg flex text-[10px] font-bold">
-                <button id="btnPeriodWeek" onclick="setAnalysisPeriod('week')" class="px-2.5 py-0.5 rounded-md text-slate-500 transition">Haftalık</button>
-                <button id="btnPeriodMonth" onclick="setAnalysisPeriod('month')" class="px-2.5 py-0.5 rounded-md bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white transition">Aylık</button>
-              </div>
-            </div>
-            <div id="analysisSlideBody" class="my-auto py-2 flex flex-col gap-2"></div>
-          </div>
-          <div class="flex flex-col items-center justify-between py-1 pl-2.5 border-l border-slate-100 dark:border-slate-800 select-none">
-            <button onclick="stepAnalysisSlide(-1)" class="w-6 h-6 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center text-slate-400"><i data-lucide="chevron-up" class="w-3.5 h-3.5"></i></button>
-            <div id="verticalDotsContainer" class="flex flex-col items-center gap-1.5 my-1"></div>
-            <button onclick="stepAnalysisSlide(1)" class="w-6 h-6 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center text-slate-400"><i data-lucide="chevron-down" class="w-3.5 h-3.5"></i></button>
-          </div>
+        <!-- Takvim Tablosu (Boşluksuz ve Kesintisiz Şeritler) -->
+        <div class="flex-1 overflow-x-auto custom-scroll border border-[var(--border)] rounded-xl">
+          <table class="w-full border-collapse text-left text-xs min-w-[700px]">
+            <thead>
+              <tr id="calendar-header-row" class="border-b border-[var(--border)] text-[11px] muted bg-[var(--soft)] font-semibold">
+                <!-- JS ile günler yan yana basılır -->
+              </tr>
+            </thead>
+            <tbody id="calendar-body-rows">
+              <!-- JS ile her ana alan ve alt görev için yatay satır basılır -->
+            </tbody>
+          </table>
         </div>
       </div>
-
-      <!-- TAKVİM -->
-      <section class="bg-white dark:bg-[#111827] rounded-2xl border border-[#e2e8f0] dark:border-slate-800 shadow-sm overflow-hidden flex flex-col">
-        <div class="px-4 py-3 border-b border-slate-200/70 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
-          <div class="flex flex-wrap items-center gap-2">
-            <div class="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
-              <button onclick="navigateCalendar(-1)" class="w-7 h-7 rounded-lg hover:bg-white dark:hover:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300"><i data-lucide="chevron-left" class="w-4 h-4"></i></button>
-              <h2 id="calendarTitleText" class="text-xs md:text-sm font-extrabold px-3 min-w-[135px] text-center text-slate-900 dark:text-white">Ekim 2026</h2>
-              <button onclick="navigateCalendar(1)" class="w-7 h-7 rounded-lg hover:bg-white dark:hover:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
-            </div>
-            <div class="bg-slate-100 dark:bg-slate-800 p-1 rounded-xl flex items-center text-xs font-bold border border-slate-200/60 dark:border-slate-700">
-              <button id="calViewMonthBtn" onclick="setCalendarView('month')" class="px-3 py-1 rounded-lg bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white">Aylık</button>
-              <button id="calViewWeekBtn" onclick="setCalendarView('week')" class="px-3 py-1 rounded-lg text-slate-500 dark:text-slate-400">Haftalık</button>
-            </div>
-          </div>
-          <div class="flex flex-wrap items-center gap-4">
-            <div id="calendarLegendBar" class="hidden sm:flex flex-wrap items-center gap-3 text-[11px]"></div>
-            <label class="flex items-center gap-2 cursor-pointer select-none bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-200/60 dark:border-slate-700">
-              <input id="toggleSubtasksInCal" type="checkbox" onchange="toggleSubtasksCalendarView(this.checked)" class="sr-only peer">
-              <div class="w-7 h-4 bg-slate-300 dark:bg-slate-600 rounded-full peer peer-checked:bg-indigo-600 relative transition after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:after:translate-x-3"></div>
-              <span class="text-xs font-bold text-slate-700 dark:text-slate-200">Alt görevleri göster</span>
-            </label>
-          </div>
-        </div>
-
-        <div class="grid grid-cols-7 text-center text-[11px] font-bold uppercase tracking-wider text-slate-400 bg-slate-50/70 dark:bg-[#0d1322] border-b border-slate-200/70 dark:border-slate-800">
-          <div class="py-2">Pzt</div><div class="py-2">Sal</div><div class="py-2">Çar</div><div class="py-2">Per</div><div class="py-2">Cum</div><div class="py-2">Cmt</div><div class="py-2">Paz</div>
-        </div>
-        <div id="calendarCellsGrid" class="grid grid-cols-7 w-full bg-white dark:bg-[#111827]"></div>
-      </section>
-    </div>
+    </section>
   </main>
 
-  <!-- GÜNLÜK DETAY MODALI -->
-  <div id="dayModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
-    <div class="bg-white dark:bg-[#151e31] border border-slate-200 dark:border-slate-700 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-      <div class="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-        <div>
-          <h3 id="dayModalTitle" class="text-sm font-extrabold text-slate-900 dark:text-white">20 Ekim 2026</h3>
-          <p id="dayModalTotalSub" class="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400">Toplam 0 dakika</p>
-        </div>
-        <button onclick="closeDayModal()" class="w-8 h-8 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center text-slate-400"><i data-lucide="x" class="w-4 h-4"></i></button>
+  <!-- ALT BİLGİ & NASIL KULLANILIR BUTONU -->
+  <footer class="mt-auto pt-2 flex flex-wrap items-center justify-between text-[11px] muted border-t border-[var(--border)] px-1">
+    <div class="flex items-center gap-2">
+      <button onclick="openHowToModal()" class="hover:text-blue-400 font-medium flex items-center gap-1 transition">
+        <i class="far fa-circle-question"></i> Nasıl Kullanılır?
+      </button>
+    </div>
+    <div class="font-medium tracking-wide">
+      Created by Furkan A. Karacabey
+    </div>
+  </footer>
+
+  <!-- ZAMANLAYICI POPOVER (Saat butonuna tıklandığında açılır) -->
+  <div id="timer-popover" class="fixed top-16 right-10 card rounded-2xl p-4 w-72 shadow-2xl border border-[var(--border)] hidden flex-col gap-3 z-50">
+    <div class="flex items-center justify-between border-b border-[var(--border)] pb-2">
+      <span class="text-xs font-bold flex items-center gap-1.5"><i class="fas fa-stopwatch text-blue-400"></i> Odak Zamanlayıcısı</span>
+      <button onclick="toggleTimerPopover()" class="muted hover:text-[var(--text)] text-xs"><i class="fas fa-xmark"></i></button>
+    </div>
+    <div class="flex flex-col items-center justify-center py-2">
+      <div id="timer-display" class="text-3xl font-black tracking-tight tabular-nums text-blue-400">25:00</div>
+      <div class="flex items-center gap-2 mt-2 w-full">
+        <label class="text-[10px] muted uppercase font-bold">Süre (Dk):</label>
+        <input id="timer-input-minutes" type="number" min="1" max="180" value="25" class="field flex-1 text-center rounded-lg p-1 text-xs font-bold focus:outline-none focus:border-blue-500" onchange="resetTimerToCustom(this.value)">
       </div>
-      <div class="p-5 overflow-y-auto flex flex-col gap-4">
+    </div>
+    <div class="flex items-center justify-center gap-2">
+      <button id="timer-start-btn" onclick="toggleTimerRunning()" class="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition flex-1">Başlat</button>
+      <button onclick="resetTimer()" class="px-3 py-1.5 ghost border border-[var(--border)] rounded-xl text-xs font-semibold" title="Sıfırla"><i class="fas fa-rotate-left"></i></button>
+      <button onclick="playAlarmSound()" class="px-2.5 py-1.5 ghost border border-[var(--border)] rounded-xl text-xs muted" title="Ses Testi"><i class="fas fa-volume-high"></i></button>
+    </div>
+  </div>
+
+  <!-- TAMAMLANANLAR ARŞİVİ MODAL -->
+  <div id="archive-modal" class="fixed inset-0 bg-black/60 backdrop-blur-xs hidden items-center justify-center p-4 z-50">
+    <div class="card rounded-2xl p-5 w-full max-w-2xl flex flex-col gap-3 shadow-2xl max-h-[85vh]">
+      <div class="flex justify-between items-center border-b border-[var(--border)] pb-2.5">
         <div>
-          <span class="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 block mb-2">Çalışılan Odak Alanları & Alt Görevler</span>
-          <div id="dayModalTracksContainer" class="flex flex-col gap-1.5"></div>
+          <h3 class="text-sm font-bold text-amber-400 flex items-center gap-2"><i class="fas fa-box-archive"></i> Tamamlananlar Arşivi</h3>
+          <p class="text-[11px] muted">Bitirdiğin tüm görevler ve harcanan toplam emekler burada saklanır.</p>
         </div>
-        <div id="dayModalCompletedSection" class="hidden">
-          <span class="text-[11px] font-extrabold uppercase tracking-wider text-amber-600 dark:text-amber-400 block mb-1.5">🎉 O Gün Tamamlananlar</span>
-          <div id="dayModalCompletedList" class="flex flex-col gap-1.5"></div>
-        </div>
+        <button onclick="closeModal('archive-modal')" class="muted hover:text-[var(--text)]"><i class="fas fa-xmark"></i></button>
+      </div>
+      <div class="flex items-center gap-2">
+        <input id="archive-search" type="text" placeholder="Arşivde ara..." oninput="renderArchiveList()" class="field flex-1 rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:border-blue-500">
+      </div>
+      <ul id="archive-list" class="flex flex-col gap-1.5 overflow-y-auto custom-scroll max-h-[50vh] pr-1"></ul>
+    </div>
+  </div>
+
+  <!-- GÜN DETAYI VE ETİKET BIRAKMA MODAL -->
+  <div id="day-modal" class="fixed inset-0 bg-black/60 backdrop-blur-xs hidden items-center justify-center p-4 z-50">
+    <div class="card rounded-2xl p-5 w-full max-w-md flex flex-col gap-3 shadow-2xl">
+      <div class="flex justify-between items-center border-b border-[var(--border)] pb-2">
         <div>
-          <span class="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 block mb-1.5">Günlük & Etiket Notu Ekle</span>
-          <div id="dayModalTagPills" class="flex flex-wrap gap-1.5 mb-2"></div>
-          <div class="flex gap-2">
-            <input id="dayModalNoteInput" type="text" placeholder="Örn: #şükür..." onkeydown="if(event.key==='Enter') addJournalToDay()" class="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs outline-none focus:border-indigo-500">
-            <button onclick="addJournalToDay()" class="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition">Ekle</button>
-          </div>
-          <div id="dayModalJournalList" class="flex flex-col gap-1.5 mt-2.5"></div>
+          <h3 class="text-sm font-bold" id="day-modal-date-label">Gün Detayı</h3>
+          <p class="text-[11px] muted">Süre kayıtları ve o güne ait zihin notları</p>
+        </div>
+        <button onclick="closeModal('day-modal')" class="muted hover:text-[var(--text)]"><i class="fas fa-xmark"></i></button>
+      </div>
+
+      <!-- Günlük Etiket ve Serbest Metin Bırakma -->
+      <div class="flex flex-col gap-1.5 bg-[var(--soft)] p-2.5 rounded-xl border border-[var(--border)]">
+        <label class="text-[10px] font-bold uppercase tracking-wider text-blue-400">Güne Not / Etiket Bırak</label>
+        <textarea id="day-journal-text" placeholder="Bugün arabama şükrettim #şükür..." class="field w-full rounded-lg p-2 text-xs resize-none h-16 focus:outline-none focus:border-blue-500"></textarea>
+        <div class="flex justify-end">
+          <button onclick="saveDayJournal()" class="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-[11px] font-bold">Kaydet</button>
         </div>
       </div>
-      <div class="px-5 py-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-[#111827] flex justify-end">
-        <button onclick="closeDayModal()" class="px-4 py-1.5 bg-slate-800 dark:bg-slate-700 text-white rounded-xl text-xs font-bold">Tamam</button>
+
+      <!-- Günün Çalışma Logları -->
+      <div class="flex flex-col gap-1">
+        <span class="text-[10px] font-bold uppercase tracking-wider muted">Çalışma Kayıtları</span>
+        <ul id="day-modal-log-list" class="flex flex-col gap-1 max-h-40 overflow-y-auto custom-scroll text-xs"></ul>
       </div>
     </div>
   </div>
 
-  <!-- ARŞİV MODALI -->
-  <div id="archiveModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
-    <div class="bg-white dark:bg-[#151e31] border border-slate-200 dark:border-slate-700 rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[88vh]">
-      <div class="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-        <div>
-          <h3 class="text-sm font-extrabold text-slate-900 dark:text-white">Tamamlananlar Arşivi</h3>
-          <p id="archiveSubtitleMeta" class="text-[11px] text-slate-400">Biten görevlerin dökümü</p>
-        </div>
-        <button onclick="closeArchiveModal()" class="w-8 h-8 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center text-slate-400"><i data-lucide="x" class="w-4 h-4"></i></button>
+  <!-- NASIL KULLANILIR REHBERİ MODAL -->
+  <div id="howto-modal" class="fixed inset-0 bg-black/60 backdrop-blur-xs hidden items-center justify-center p-4 z-50">
+    <div class="card rounded-2xl p-5 w-full max-w-lg flex flex-col gap-3 shadow-2xl">
+      <div class="flex justify-between items-center border-b border-[var(--border)] pb-2">
+        <h3 class="text-sm font-bold flex items-center gap-1.5"><i class="far fa-circle-question text-blue-400"></i> FocoDesk Nasıl Kullanılır?</h3>
+        <button onclick="closeModal('howto-modal')" class="muted hover:text-[var(--text)]"><i class="fas fa-xmark"></i></button>
       </div>
-      <div id="archiveModalList" class="p-5 overflow-y-auto flex-1 flex flex-col gap-2"></div>
-    </div>
-  </div>
-
-  <!-- GOOGLE AUTH MODALI -->
-  <div id="googleAuthModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
-    <div class="bg-white dark:bg-[#151e31] border border-slate-200 dark:border-slate-700 rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden flex flex-col p-5">
-      <div class="flex items-center justify-between mb-4">
-        <h3 class="text-sm font-extrabold text-slate-900 dark:text-white">Google ile Giriş</h3>
-        <button onclick="closeGoogleAuthModal()" class="text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-4 h-4"></i></button>
+      <div class="text-xs leading-relaxed flex flex-col gap-2.5 muted">
+        <p><strong class="text-[var(--text)]">Kesintisiz Zincir ve Odak Felsefesi:</strong> FocoDesk; akademik çalışmalar, projeler ve sürdürülebilir alışkanlıkları zinciri kırmadan takip etmeniz için tasarlanmıştır. Sol panelden odak alanlarınızı ve alt görevlerinizi oluşturabilir, sürükleyerek sıralarını düzenleyebilirsiniz. Her görevin karşısındaki takvim kutularına tıklandığında süre ve zincir halkası işlenir; aralıksız sürdürülen günlerde renkler koyulaşarak çabanızın görsel ısı haritasını oluşturur.</p>
+        <p><strong class="text-[var(--text)]">Zihin Hafızası ve Arşiv:</strong> Görevleriniz tamamlandığında bitir butonuyla arşive kaldırılır; dilediğiniz zaman yanlışlıkla basılan işlemleri "Geri Al" butonuyla geri yükleyebilirsiniz. Takvimdeki günlere `#şükür`, `#stres` gibi etiketler bırakarak geçmişe dönük duygu analizi yapabilir, üst bardaki araçlarla verilerinizi dilediğiniz zaman yapay zeka analizine hazır metin formatında indirebilirsiniz.</p>
       </div>
-      <div id="googleAuthLoggedOutView" class="flex flex-col gap-3">
-        <p class="text-xs text-slate-500">Bilgilerinizi girerek oturum açın:</p>
-        <input id="googleNameInput" type="text" placeholder="Ad Soyad" class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-semibold outline-none">
-        <button onclick="confirmGoogleLogin()" class="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition">Bağlan</button>
-      </div>
-      <div id="googleAuthLoggedInView" class="hidden flex-col gap-3">
-        <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 text-xs font-bold" id="googleProfileName">Kullanıcı</div>
-        <button onclick="logoutGoogleAccount()" class="w-full py-2 bg-rose-50 text-rose-600 rounded-xl text-xs font-bold">Oturumu Kapat</button>
+      <div class="flex justify-end pt-1">
+        <button onclick="closeModal('howto-modal')" class="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-semibold">Anladım</button>
       </div>
     </div>
   </div>
 
+  <!-- JAVASCRIPT: SUPABASE, ZİNCİR MANTIĞI VE ARAYÜZ MOTORU -->
   <script>
-    const PRESET_COLORS = ['#7c3aed', '#4f46e5', '#2563eb', '#0284c7', '#0891b2', '#0d9488', '#059669', '#16a34a', '#65a30d', '#d97706', '#ea580c', '#f97316', '#e11d48', '#db2777', '#c026d3', '#dc2626'];
-    const TODAY_STR = '2026-10-20';
-    let lastUndoSnapshot = null;
-    let toastTimeoutHandle = null;
+    // SUPABASE VE VERİTABANI BAĞLANTISI
+    const SUPABASE_URL = "https://mssjazycznwxnqhxrbuv.supabase.co";
+    const SUPABASE_ANON_KEY = "sb_publishable_iO5wNMRbtTnq7LttphegXA_zXB6rgaP";
+    const STORE_KEY = "focodesk_unified_v1";
 
-    const STATE = {
-      year: 2026,
-      month: 9,
-      calendarView: 'month',
-      weekStartDate: '2026-10-19',
-      durationDisplayMode: 'smart',
-      showSubtasksInCalendar: false,
-      activeTagFilter: '#şükür',
-      leftCardSlide: 0,
-      freeScratchpadTitle: 'Hızlı Serbest Not',
-      freeScratchpadNote: '',
-      analysisSlide: 0,
-      analysisPeriod: 'month',
-      activeDayModalDate: null,
-      googleUser: null,
-      timerMins: 25,
-      timerSecs: 25 * 60,
-      timerRunning: false,
-      timerHandle: null,
-      tags: ['#şükür', '#mutluluk', '#stres', '#odak'],
-      focusGroups: [
-        { id: 'grp-1', title: 'Odak Alanları', collapsed: false },
-        { id: 'grp-2', title: 'Kişisel & Rutinler', collapsed: false }
-      ],
-      areas: [
-        { id: 1, groupId: 'grp-1', name: 'Doktora Tezi', color: '#7c3aed', chained: true, subtasks: [{ id: 101, title: 'Metot Kurgusu', chained: true, stepMins: 90, completedShortTerm: false }], notes: [] },
-        { id: 2, groupId: 'grp-1', name: 'Dergi & Makale', color: '#059669', chained: true, subtasks: [], notes: [] }
-      ],
-      completedArchive: [],
-      dayLogs: {
-        '2026-10-20': { hours: { 'area-1': 120 }, journals: ['#şükür Güne verimli başladık'], completed: [] }
-      }
-    };
-
-    const QUOTES = [
-      { text: "Zihninizin gücü, odaklandığınız şeylerin kalitesiyle ölçülür; her gün aynı disiplini korumak özgürlüktür.", author: "Marcus Aurelius" },
-      { text: "Hangi limana yelken açtığını bilmeyene hiçbir rüzgar fayda sağlamaz.", author: "Seneca" }
+    const PALETTE = [
+      "#8b5cf6", "#10b981", "#f97316", "#3b82f6",
+      "#f43f5e", "#06b6d4", "#f59e0b", "#d946ef",
+      "#6366f1", "#14b8a6", "#ec4899", "#84cc16"
     ];
-    let currentQuoteIdx = 0;
 
-    window.onload = function() {
-      updateClock();
-      setInterval(updateClock, 1000);
-      renderAll();
+    const MOTIVATION_QUOTES = [
+      { text: "Süreklilik, küçük adımların birleşerek inşa ettiği yenilmez bir disiplindir.", author: "Marcus Aurelius" },
+      { text: "Zor olduğu için cesaret edemiyor değiliz; cesaret edemediğimiz için zordur.", author: "Seneca" },
+      { text: "Ruhunu büyük işlerle meşgul etmeyen insan, küçük sıkıntıların kölesi olur.", author: "Epiktetos" },
+      { text: "Her gün bir adım atmak, hiç durmadan ilerlemenin tek gerçek yoludur.", author: "Konfüçyüs" }
+    ];
+
+    // UYGULAMA MERKEZİ HAFIZASI
+    var state = {
+      areas: [],
+      subtasks: [],
+      notes: {},
+      dayJournals: {},
+      tags: ["#şükür", "#mutluluk", "#stres", "#derinOdak"],
+      archive: [],
+      logs: [],
+      activeTagFilter: null,
+      viewMode: "monthly",
+      showSubtasksInCalendar: false,
+      useHoursFormat: true,
+      selectedDate: null,
+      currentYear: 2026,
+      currentMonth: 9, // Ekim (0 tabanlı)
+      currentWeekOffset: 0,
+      quoteIndex: 0,
+      activeQuoteTab: 0,
+      analysisScreen: 0,
+      lastDeletedItem: null,
+      timer: {
+        minutes: 25,
+        seconds: 0,
+        isRunning: false,
+        intervalId: null
+      },
+      prefs: { theme: "dark", city: "sivas", freeNoteTitle: "Hızlı Serbest Not", freeNoteContent: "" },
+      supabaseClient: null
     };
 
-    function hexToHsl(hex) {
-      hex = (hex || '#7c3aed').replace('#', '');
-      if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
-      const r = parseInt(hex.substring(0, 2), 16) / 255;
-      const g = parseInt(hex.substring(2, 4), 16) / 255;
-      const b = parseInt(hex.substring(4, 6), 16) / 255;
-      const max = Math.max(r, g, b), min = Math.min(r, g, b);
-      let h = 0, s = 0, l = (max + min) / 2;
-      if (max !== min) {
-        const d = max - min;
-        s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-        switch (max) {
-          case r: h = (g - b) / d + (g < b ? 6 : 0); break;
-          case g: h = (b - r) / d + 2; break;
-          case b: h = (r - g) / d + 4; break;
-        }
-        h /= 6;
-      }
-      return { h: Math.round(h * 360), s: Math.round(s * 100), l: Math.round(l * 100) };
+    function uid(p) { return (p || "id") + "_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+    function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+    function todayStr() { var d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+
+    // DAKİKA / SAAT AKILLI DÖNÜŞÜMÜ
+    function formatDuration(minutes) {
+      if (!minutes || minutes <= 0) return "0dk";
+      if (!state.useHoursFormat || minutes < 60) return minutes + "dk";
+      var h = Math.floor(minutes / 60);
+      var m = minutes % 60;
+      return m > 0 ? h + "sa " + m + "dk" : h + "sa";
     }
 
-    function getStreakColorCss(hexColor, streak, isSub = false) {
-      const hsl = hexToHsl(hexColor);
-      const baseL = isSub ? Math.min(70, hsl.l + 14) : Math.min(62, hsl.l + 8);
-      const l = Math.max(isSub ? 44 : 28, baseL - (streak * 3.6));
-      const s = Math.min(95, Math.max(65, hsl.s) + (streak * 2));
-      return `hsl(${hsl.h}, ${s}%, ${l}%)`;
-    }
-
-    function formatMinutesLabel(mins) {
-      const m = Math.round(Number(mins) || 0);
-      if (STATE.durationDisplayMode === 'mins' || m < 60) return `${m}dk`;
-      const h = Math.floor(m / 60);
-      const rem = m % 60;
-      return rem === 0 ? `${h}sa` : `${h}sa ${rem}dk`;
-    }
-
-    function toggleDurationDisplayMode() {
-      STATE.durationDisplayMode = STATE.durationDisplayMode === 'smart' ? 'mins' : 'smart';
+    function toggleDurationFormat() {
+      state.useHoursFormat = !state.useHoursFormat;
+      document.getElementById("btn-duration-format").textContent = state.useHoursFormat ? "⏳" : "⌛";
+      persistLocal();
       renderAll();
     }
 
-    function updateClock() {
-      const now = new Date();
-      document.getElementById('liveClockText').innerText = now.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-      document.getElementById('liveDateText').innerText = now.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', weekday: 'short' });
+    // YEREL KAYIT VE SUPABASE EŞİTLEME
+    function persistLocal() {
+      var payload = {
+        areas: state.areas,
+        subtasks: state.subtasks,
+        notes: state.notes,
+        dayJournals: state.dayJournals,
+        tags: state.tags,
+        archive: state.archive,
+        logs: state.logs,
+        prefs: state.prefs,
+        useHoursFormat: state.useHoursFormat,
+        showSubtasksInCalendar: state.showSubtasksInCalendar
+      };
+      localStorage.setItem(STORE_KEY, JSON.stringify(payload));
     }
 
-    function hoverWeatherBox(isHover) {}
-    function onWeatherCityChange() {}
+    function loadInitialData() {
+      var raw = localStorage.getItem(STORE_KEY);
+      if (raw) {
+        try {
+          var data = JSON.parse(raw);
+          state.areas = data.areas || [];
+          state.subtasks = data.subtasks || [];
+          state.notes = data.notes || {};
+          state.dayJournals = data.dayJournals || {};
+          state.tags = data.tags || state.tags;
+          state.archive = data.archive || [];
+          state.logs = data.logs || [];
+          state.prefs = Object.assign(state.prefs, data.prefs || {});
+          state.useHoursFormat = data.useHoursFormat !== undefined ? data.useHoursFormat : true;
+          state.showSubtasksInCalendar = !!data.showSubtasksInCalendar;
+        } catch (e) {}
+      }
 
-    function toggleTheme() {
-      const isDark = document.documentElement.classList.toggle('dark');
-      document.getElementById('themeToggleIcon').setAttribute('data-lucide', isDark ? 'sun' : 'moon');
-      renderCalendar();
-      lucide.createIcons();
+      if (!state.areas.length) {
+        state.areas = [
+          { id: "tez", title: "Doktora Tezi", color: "#8b5cf6", isChain: true },
+          { id: "makale", title: "Dergi & Makale", color: "#10b981", isChain: true },
+          { id: "akreditasyon", title: "Akreditasyon Dosyaları", color: "#f97316", isChain: true },
+          { id: "okuma", title: "Literatür & Okuma", color: "#3b82f6", isChain: false }
+        ];
+        state.subtasks = [
+          { id: "st_1", areaId: "tez", title: "Metot Kurgusu Analizi", done: false, isChain: true },
+          { id: "st_2", areaId: "tez", title: "Giriş Literatür Özeti", done: false, isChain: false }
+        ];
+        state.logs = [
+          { id: "l1", areaId: "tez", subtaskId: "st_1", date: todayStr(), minutes: 90, note: "Metot tartışması yazıldı" }
+        ];
+      }
     }
 
-    function cycleQuote() {
-      currentQuoteIdx = (currentQuoteIdx + 1) % QUOTES.length;
-      document.getElementById('quoteContent').innerText = `"${QUOTES[currentQuoteIdx].text}"`;
-      document.getElementById('quoteAuthor').innerText = `— ${QUOTES[currentQuoteIdx].author}`;
+    // SAAT, HAVA DURUMU VE ZAMANLAYICI
+    function tickClock() {
+      var d = new Date();
+      var str = d.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+      var el = document.getElementById("live-clock-text");
+      if (el) el.textContent = str;
     }
 
-    function stepLeftCardSlide(dir) {
-      STATE.leftCardSlide = (STATE.leftCardSlide + dir + 2) % 2;
-      renderLeftCardSlides();
+    async function loadWeather() {
+      try {
+        var res = await fetch("https://api.open-meteo.com/v1/forecast?latitude=39.7477&longitude=37.0179&current=temperature_2m,weather_code&timezone=auto");
+        var data = await res.json();
+        var temp = Math.round(data.current.temperature_2m);
+        document.getElementById("weather-text").textContent = "Sivas • " + temp + "°C";
+      } catch (e) {
+        document.getElementById("weather-text").textContent = "Sivas • 11°C";
+      }
     }
 
-    function renderLeftCardSlides() {
-      const quoteView = document.getElementById('leftCardSlideQuote');
-      const noteView = document.getElementById('leftCardSlideNotepad');
-      const dotsEl = document.getElementById('leftCardDotsContainer');
-      if (!quoteView || !noteView) return;
-      if (STATE.leftCardSlide === 0) {
-        quoteView.classList.remove('hidden'); noteView.classList.add('hidden');
+    function expandWeather(expand) {
+      var el = document.getElementById("weather-text");
+      if (!el) return;
+      var cur = el.textContent.split("Parçalı")[0].trim();
+      el.textContent = expand ? cur + " Parçalı Bulutlu" : cur.replace(" Parçalı Bulutlu", "");
+    }
+
+    function toggleTimerPopover() {
+      var el = document.getElementById("timer-popover");
+      el.classList.toggle("hidden");
+      el.classList.toggle("flex");
+    }
+
+    function resetTimerToCustom(mins) {
+      var m = parseInt(mins, 10) || 25;
+      state.timer.minutes = m;
+      state.timer.seconds = 0;
+      updateTimerDisplay();
+    }
+
+    function resetTimer() {
+      clearInterval(state.timer.intervalId);
+      state.timer.isRunning = false;
+      document.getElementById("timer-start-btn").textContent = "Başlat";
+      resetTimerToCustom(document.getElementById("timer-input-minutes").value);
+    }
+
+    function toggleTimerRunning() {
+      var btn = document.getElementById("timer-start-btn");
+      if (state.timer.isRunning) {
+        clearInterval(state.timer.intervalId);
+        state.timer.isRunning = false;
+        btn.textContent = "Devam Et";
       } else {
-        quoteView.classList.add('hidden'); noteView.classList.remove('hidden');
+        state.timer.isRunning = true;
+        btn.textContent = "Durdur";
+        state.timer.intervalId = setInterval(function () {
+          if (state.timer.seconds > 0) {
+            state.timer.seconds--;
+          } else if (state.timer.minutes > 0) {
+            state.timer.minutes--;
+            state.timer.seconds = 59;
+          } else {
+            clearInterval(state.timer.intervalId);
+            state.timer.isRunning = false;
+            btn.textContent = "Başlat";
+            playAlarmSound();
+            confetti({ particleCount: 70, spread: 60 });
+            alert("Süre tamamlandı! Harika bir odak seansı geçirdin.");
+          }
+          updateTimerDisplay();
+        }, 1000);
       }
-      dotsEl.innerHTML = [0, 1].map(i => `
-        <button onclick="stepLeftCardSlide(${i})" class="w-2 rounded-full transition-all ${STATE.leftCardSlide === i ? 'h-5 bg-indigo-600' : 'h-2 bg-slate-300 dark:bg-slate-700'}"></button>
-      `).join('');
     }
 
-    function updateFreeScratchpad(val) { STATE.freeScratchpadNote = val; }
-    function updateFreeScratchpadTitle(val) { STATE.freeScratchpadTitle = val.trim() || 'Hızlı Serbest Not'; }
-
-    function renderAll() {
-      renderLeftFocusGroups();
-      renderLeftTags();
-      renderLeftCardSlides();
-      renderAnalysisCard();
-      renderCalendar();
-      populateTimerDropdown();
-      lucide.createIcons();
+    function updateTimerDisplay() {
+      var m = String(state.timer.minutes).padStart(2, "0");
+      var s = String(state.timer.seconds).padStart(2, "0");
+      document.getElementById("timer-display").textContent = m + ":" + s;
     }
 
-    function getTrackStats(trackKey) {
-      let mins = 0, days = 0;
-      Object.values(STATE.dayLogs).forEach(log => {
-        if (log.hours && log.hours[trackKey] > 0) { mins += log.hours[trackKey]; days++; }
-      });
-      return { mins: Math.round(mins), days };
+    function playAlarmSound() {
+      try {
+        var ctx = new (window.AudioContext || window.webkitAudioContext)();
+        var osc = ctx.createOscillator();
+        var gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
+        osc.frequency.setValueAtTime(880, ctx.currentTime + 0.15); // A5
+        gain.gain.setValueAtTime(0.15, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.6);
+      } catch (e) {}
     }
 
-    function renderLeftFocusGroups() {
-      const groupsWrapper = document.getElementById('focusGroupsContainer');
-      groupsWrapper.innerHTML = '';
-      const todayLog = ensureDayLog(TODAY_STR);
+    // SÖZ VE HIZLI NOT KARTI
+    function switchQuoteCard(index) {
+      state.activeQuoteTab = index;
+      document.getElementById("quote-section").classList.toggle("hidden", index !== 0);
+      document.getElementById("note-section").classList.toggle("hidden", index !== 1);
+      document.getElementById("quote-dot-0").className = index === 0 ? "w-1.5 h-4 rounded-full bg-blue-500 transition-all" : "w-1.5 h-1.5 rounded-full bg-[var(--border)] transition-all";
+      document.getElementById("quote-dot-1").className = index === 1 ? "w-1.5 h-4 rounded-full bg-blue-500 transition-all" : "w-1.5 h-1.5 rounded-full bg-[var(--border)] transition-all";
+      if (index === 1) {
+        document.getElementById("free-note-title").firstElementChild.textContent = state.prefs.freeNoteTitle || "Hızlı Serbest Not";
+        document.getElementById("free-note-textarea").value = state.prefs.freeNoteContent || "";
+      }
+    }
 
-      STATE.focusGroups.forEach(group => {
-        const groupAreas = STATE.areas.filter(a => a.groupId === group.id);
-        let areasHtml = groupAreas.length === 0 ? `<div class="text-[11px] text-slate-400 italic py-2 text-center">Bu pencerede alan yok.</div>` : '';
+    function saveFreeNote() {
+      state.prefs.freeNoteContent = document.getElementById("free-note-textarea").value;
+      persistLocal();
+      var st = document.getElementById("free-note-status");
+      st.textContent = "Kaydedildi";
+    }
 
-        groupAreas.forEach(area => {
-          const stats = getTrackStats(`area-${area.id}`);
-          const todayAreaMins = todayLog.hours[`area-${area.id}`] || 0;
-          areasHtml += `
-            <div class="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/40 dark:bg-[#151e30] p-2 flex items-center justify-between">
-              <div class="flex items-center gap-2">
-                <span class="w-3 h-3 rounded-full" style="background:${area.color}"></span>
-                <span class="text-xs font-bold text-slate-800 dark:text-slate-100">${area.name}</span>
-              </div>
-              <button onclick="quickLogAreaToday(${area.id})" class="text-[10px] font-bold px-2 py-1 rounded bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400">${formatMinutesLabel(stats.mins)}</button>
-            </div>`;
+    function renameFreeNoteTitle() {
+      var t = prompt("Yeni not başlığı:", state.prefs.freeNoteTitle || "Hızlı Serbest Not");
+      if (t && t.trim()) {
+        state.prefs.freeNoteTitle = t.trim();
+        document.getElementById("free-note-title").firstElementChild.textContent = t.trim();
+        persistLocal();
+      }
+    }
+
+    // DİKEY 5 NOKTALI ANALİZ KARTI
+    function setAnalysisScreen(idx) {
+      state.analysisScreen = idx;
+      for (var i = 0; i < 5; i++) {
+        var dot = document.getElementById("dot-" + i);
+        if (dot) dot.className = i === idx ? "w-1.5 h-3.5 rounded-full bg-blue-500 transition-all" : "w-1.5 h-1.5 rounded-full bg-[var(--border)] transition-all";
+      }
+      renderAnalysisContent();
+    }
+
+    function renderAnalysisContent() {
+      var container = document.getElementById("analysis-content");
+      var html = "";
+      var totalMinutes = state.logs.reduce(function (acc, l) { return acc + (l.minutes || 0); }, 0);
+
+      if (state.analysisScreen === 0) {
+        // 1. Nokta: Alan Süreleri
+        html += '<span class="text-[10px] font-bold uppercase tracking-wider text-blue-400 mb-1">Alan Dağılımı • Toplam ' + formatDuration(totalMinutes) + '</span>';
+        html += '<div class="flex flex-col gap-1.5 mt-1">';
+        state.areas.forEach(function (a) {
+          var mins = state.logs.filter(function (l) { return l.areaId === a.id; }).reduce(function (s, l) { return s + l.minutes; }, 0);
+          var pct = totalMinutes > 0 ? Math.round((mins / totalMinutes) * 100) : 0;
+          html += '<div class="flex items-center gap-2 text-[11px]">';
+          html += '  <span class="w-2 h-2 rounded-full shrink-0" style="background:' + a.color + '"></span>';
+          html += '  <span class="w-28 truncate font-medium">' + esc(a.title) + '</span>';
+          html += '  <div class="flex-1 bg-[var(--input)] h-1.5 rounded-full overflow-hidden border border-[var(--border)]"><div class="h-full rounded-full" style="width:' + pct + '%;background:' + a.color + '"></div></div>';
+          html += '  <span class="text-[10px] tabular-nums muted">' + formatDuration(mins) + '</span>';
+          html += '</div>';
         });
+        html += '</div>';
+      } else if (state.analysisScreen === 1) {
+        // 2. Nokta: Zincir Durumu ve Kırılma Detayı
+        html += '<span class="text-[10px] font-bold uppercase tracking-wider text-emerald-400 mb-1">Zincir & Kırılma Durumu</span>';
+        html += '<div class="flex flex-col gap-1 mt-1 text-[11px]">';
+        state.areas.filter(function (a) { return a.isChain; }).forEach(function (a) {
+          var streak = calculateStreak(a.id);
+          var status = streak > 0 ? '<span class="text-emerald-400 font-bold">' + streak + ' gündür aktif 🔥</span>' : '<span class="text-rose-400 font-semibold">Zincir boşta</span>';
+          html += '<div class="flex justify-between items-center py-0.5 border-b border-[var(--border)]/50">';
+          html += '  <span class="font-medium">' + esc(a.title) + '</span>';
+          html += '  <span>' + status + '</span>';
+          html += '</div>';
+        });
+        html += '</div>';
+      } else if (state.analysisScreen === 2) {
+        // 3. Nokta: Tamamlanan Arşiv Özeti
+        html += '<span class="text-[10px] font-bold uppercase tracking-wider text-amber-400 mb-1">Tamamlananlar Arşivi</span>';
+        html += '<div class="text-[11px] mt-1 flex flex-col gap-1">';
+        html += '  <p class="font-bold text-sm text-[var(--text)]">' + state.archive.length + ' Görev Başarıyla Tamamlandı 🏆</p>';
+        html += '  <p class="muted">Bitirilen işler listeden kaldırılarak takvim ve arşiv hafızasında güvenle saklandı.</p>';
+        html += '</div>';
+      } else if (state.analysisScreen === 3) {
+        // 4. Nokta: Zihin & Etiket Dağılımı
+        html += '<span class="text-[10px] font-bold uppercase tracking-wider text-purple-400 mb-1">Zihin & Etiket Dağılımı</span>';
+        html += '<div class="flex flex-wrap gap-1.5 mt-2">';
+        state.tags.forEach(function (t) {
+          var count = 0;
+          Object.keys(state.dayJournals).forEach(function (d) {
+            if (state.dayJournals[d].includes(t)) count++;
+          });
+          html += '<span class="px-2 py-0.5 rounded-md text-[10px] font-bold field border border-[var(--border)]">' + esc(t) + ' (' + count + ')</span>';
+        });
+        html += '</div>';
+      } else {
+        // 5. Nokta: Ritim & Odak Skoru
+        html += '<span class="text-[10px] font-bold uppercase tracking-wider text-blue-400 mb-1">Genel Ritim</span>';
+        var daysWithLog = {};
+        state.logs.forEach(function (l) { daysWithLog[l.date] = true; });
+        var activeDayCount = Object.keys(daysWithLog).length;
+        html += '<div class="flex items-center gap-4 mt-2">';
+        html += '  <div class="text-2xl font-black text-blue-400">' + activeDayCount + ' Gün</div>';
+        html += '  <div class="text-[11px] muted leading-tight">Son 30 gün içinde en az bir odak veya zincir seansı kaydedildi.</div>';
+        html += '</div>';
+      }
+      container.innerHTML = html;
+    }
 
-        const sectionEl = document.createElement('section');
-        sectionEl.className = "bg-white dark:bg-[#111827] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden p-3";
-        sectionEl.innerHTML = `<h2 class="text-xs font-extrabold uppercase text-slate-600 dark:text-slate-300 mb-2">${group.title}</h2><div class="flex flex-col gap-2">${areasHtml}</div>`;
-        groupsWrapper.appendChild(sectionEl);
+    function calculateStreak(areaId) {
+      var d = new Date();
+      var streak = 0;
+      for (var i = 0; i < 60; i++) {
+        var str = localDate(d);
+        var has = state.logs.some(function (l) { return l.areaId === areaId && l.date === str; });
+        if (has) {
+          streak++;
+          d.setDate(d.getDate() - 1);
+        } else if (i === 0) {
+          d.setDate(d.getDate() - 1);
+        } else {
+          break;
+        }
+      }
+      return streak;
+    }
+
+    function localDate(d) {
+      return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+    }
+
+    // SOL PANEL: SÜRÜKLE-BIRAK ODAK ALANLARI VE ALT GÖREVLER
+    function renderAreas() {
+      var list = document.getElementById("area-list");
+      var html = "";
+
+      state.areas.forEach(function (a, idx) {
+        var subtasks = state.subtasks.filter(function (s) { return s.areaId === a.id; });
+        html += '<li class="card rounded-xl p-2.5 flex flex-col gap-2 transition" draggable="true" ondragstart="handleDragStart(event, ' + idx + ')" ondragover="handleDragOver(event)" ondrop="handleDrop(event, ' + idx + ')" ondragleave="handleDragLeave(event)">';
+        
+        // Ana Alan Başlık Çubuğu
+        html += '  <div class="flex items-center gap-2">';
+        html += '    <i class="fas fa-grip-vertical text-xs muted cursor-grab" title="Sıralamak için sürükle"></i>';
+        html += '    <span class="w-3 h-3 rounded-full shrink-0 cursor-pointer" style="background:' + a.color + '" onclick="cycleAreaColor(\'' + a.id + '\')"></span>';
+        html += '    <span class="font-bold text-xs flex-1 truncate cursor-pointer" onclick="renameAreaTitle(\'' + a.id + '\')">' + esc(a.title) + '</span>';
+        
+        // Zincir Anahtarı
+        html += '    <button onclick="toggleAreaChain(\'' + a.id + '\')" class="text-[10px] px-1.5 py-0.5 rounded ' + (a.isChain ? "bg-blue-500/15 text-blue-400 font-bold" : "muted ghost") + '" title="Zincire Dahil Et/Çıkar">🔗</button>';
+        
+        // Bitir (🎉) Butonu
+        html += '    <button onclick="finishTask(\'area\', \'' + a.id + '\')" class="w-6 h-6 rounded-lg ghost flex items-center justify-center text-xs hover:text-amber-400" title="Tamamla ve Arşive Kaldır">🎉</button>';
+        html += '    <button onclick="deleteArea(\'' + a.id + '\')" class="w-6 h-6 rounded-lg ghost flex items-center justify-center text-[10px] muted hover:text-rose-400"><i class="fas fa-trash"></i></button>';
+        html += '  </div>';
+
+        // Alt Görevler
+        if (subtasks.length > 0) {
+          html += '<ul class="flex flex-col gap-1 pl-4 border-l border-[var(--border)] ml-1.5 my-1">';
+          subtasks.forEach(function (st) {
+            html += '<li class="flex items-center gap-2 text-[11px] p-1.5 rounded-lg bg-[var(--soft)] hover:bg-[var(--hover)]">';
+            html += '  <input type="checkbox" ' + (st.done ? "checked" : "") + ' onclick="toggleSubtaskCheck(\'' + st.id + '\')" class="accent-blue-500 rounded">';
+            html += '  <span class="flex-1 truncate ' + (st.done ? "line-through muted" : "font-medium") + '">' + esc(st.title) + '</span>';
+            html += '  <button onclick="logQuickMinutesModal(\'' + st.id + '\', \'' + a.id + '\')" class="text-[9px] font-bold px-1.5 py-0.5 rounded field hover:border-blue-500">+Dk</button>';
+            html += '  <button onclick="finishTask(\'subtask\', \'' + st.id + '\')" class="w-5 h-5 rounded ghost flex items-center justify-center text-[10px] hover:text-amber-400" title="Alt Görevi Bitir">🎉</button>';
+            html += '</li>';
+          });
+          html += '</ul>';
+        }
+
+        // Alt Butonlar: [+ Alt Görev] ve [+ Not]
+        html += '  <div class="flex items-center gap-1.5 pt-1 text-[10px] border-t border-[var(--border)]/40">';
+        html += '    <button onclick="addSubtaskPrompt(\'' + a.id + '\')" class="px-2 py-0.5 rounded ghost border border-[var(--border)] font-semibold">+ Alt Görev</button>';
+        html += '    <button onclick="editAreaNotePrompt(\'' + a.id + '\')" class="px-2 py-0.5 rounded ghost border border-[var(--border)] font-semibold text-blue-400">' + (state.notes[a.id] ? "📝 Notu Oku" : "+ Not") + '</button>';
+        html += '  </div>';
+
+        html += '</li>';
       });
+
+      list.innerHTML = html;
     }
 
-    function ensureDayLog(dateStr) {
-      if (!STATE.dayLogs[dateStr]) STATE.dayLogs[dateStr] = { hours: {}, journals: [], completed: [] };
-      return STATE.dayLogs[dateStr];
-    }
-
-    function quickLogAreaToday(areaId) {
-      const log = ensureDayLog(TODAY_STR);
-      const key = `area-${areaId}`;
-      log.hours[key] = (log.hours[key] || 0) + 45;
+    // SÜRÜKLE-BIRAK FONKSİYONLARI
+    var draggedAreaIndex = null;
+    function handleDragStart(e, idx) { draggedAreaIndex = idx; e.dataTransfer.effectAllowed = "move"; }
+    function handleDragOver(e) { e.preventDefault(); e.currentTarget.classList.add("drag-over"); }
+    function handleDragLeave(e) { e.currentTarget.classList.remove("drag-over"); }
+    function handleDrop(e, targetIdx) {
+      e.preventDefault();
+      e.currentTarget.classList.remove("drag-over");
+      if (draggedAreaIndex === null || draggedAreaIndex === targetIdx) return;
+      var moved = state.areas.splice(draggedAreaIndex, 1)[0];
+      state.areas.splice(targetIdx, 0, moved);
+      persistLocal();
       renderAll();
     }
 
-    function renderLeftTags() {
-      const badgeList = document.getElementById('tagsBadgeList');
-      const feedEl = document.getElementById('tagHistoryFeed');
-      if (!badgeList) return;
-      badgeList.innerHTML = STATE.tags.map(t => `<button onclick="selectTagFilter('${t}')" class="px-2.5 py-1 rounded-xl text-xs font-bold ${STATE.activeTagFilter === t ? 'bg-indigo-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'}">${t}</button>`).join('');
-      feedEl.innerHTML = `<div class="text-[11px] text-slate-400">Etiket akışı aktif.</div>`;
+    function cycleAreaColor(id) {
+      var a = state.areas.find(function (x) { return x.id === id; });
+      if (!a) return;
+      var curIdx = PALETTE.indexOf(a.color);
+      a.color = PALETTE[(curIdx + 1) % PALETTE.length];
+      persistLocal();
+      renderAll();
     }
 
-    function selectTagFilter(t) { STATE.activeTagFilter = t; renderLeftTags(); }
-    function addNewTag() {
-      const val = document.getElementById('customTagInput').value.trim();
-      if (val && !STATE.tags.includes(val)) STATE.tags.push(val);
-      document.getElementById('customTagInput').value = '';
-      renderLeftTags();
+    function renameAreaTitle(id) {
+      var a = state.areas.find(function (x) { return x.id === id; });
+      if (!a) return;
+      var t = prompt("Alan adını düzenle:", a.title);
+      if (t && t.trim()) {
+        a.title = t.trim();
+        persistLocal();
+        renderAll();
+      }
     }
 
-    function renderAnalysisCard() {
-      const bodyEl = document.getElementById('analysisSlideBody');
-      if (!bodyEl) return;
-      bodyEl.innerHTML = STATE.areas.map(a => `<div class="text-xs font-bold text-slate-700 dark:text-slate-200 flex justify-between"><span>${a.name}</span><span class="text-indigo-600">Aktif</span></div>`).join('');
+    function toggleAreaChain(id) {
+      var a = state.areas.find(function (x) { return x.id === id; });
+      if (a) {
+        a.isChain = !a.isChain;
+        persistLocal();
+        renderAll();
+      }
     }
 
-    function setAnalysisPeriod(p) { STATE.analysisPeriod = p; renderAnalysisCard(); }
-    function stepAnalysisSlide(d) { STATE.analysisSlide = (STATE.analysisSlide + d + 3) % 3; renderAnalysisCard(); }
+    function addSubtaskPrompt(areaId) {
+      var t = prompt("Alt görev adı:");
+      if (!t || !t.trim()) return;
+      state.subtasks.push({ id: uid("st"), areaId: areaId, title: t.trim(), done: false, isChain: true });
+      persistLocal();
+      renderAll();
+    }
+
+    function editAreaNotePrompt(areaId) {
+      var cur = state.notes[areaId] || "";
+      var n = prompt("Bu alana özel notlarınızı yazın:", cur);
+      if (n !== null) {
+        state.notes[areaId] = n.trim();
+        persistLocal();
+        renderAll();
+      }
+    }
+
+    function deleteArea(id) {
+      if (!confirm("Bu odak alanını ve kayıtlarını silmek istiyor musunuz?")) return;
+      state.areas = state.areas.filter(function (a) { return a.id !== id; });
+      state.subtasks = state.subtasks.filter(function (s) { return s.areaId !== id; });
+      persistLocal();
+      renderAll();
+    }
+
+    function toggleSubtaskCheck(id) {
+      var st = state.subtasks.find(function (s) { return s.id === id; });
+      if (st) {
+        st.done = !st.done;
+        persistLocal();
+        renderAll();
+      }
+    }
+
+    // BİTİR VE ARŞİVLE (🏆) + GERİ AL (UNDO) SİSTEMİ
+    function finishTask(type, id) {
+      var item = null;
+      var areaTitle = "";
+
+      if (type === "area") {
+        var idx = state.areas.findIndex(function (a) { return a.id === id; });
+        if (idx === -1) return;
+        item = state.areas.splice(idx, 1)[0];
+        areaTitle = item.title;
+      } else {
+        var sIdx = state.subtasks.findIndex(function (s) { return s.id === id; });
+        if (sIdx === -1) return;
+        item = state.subtasks.splice(sIdx, 1)[0];
+        var parentArea = state.areas.find(function (a) { return a.id === item.areaId; });
+        areaTitle = parentArea ? parentArea.title : "Genel";
+      }
+
+      var now = new Date();
+      var archiveRecord = {
+        id: uid("arch"),
+        originalId: item.id,
+        type: type,
+        title: item.title,
+        areaTitle: areaTitle,
+        finishedAt: now.toLocaleDateString("tr-TR") + " " + now.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" }),
+        itemData: item
+      };
+
+      state.archive.unshift(archiveRecord);
+      state.lastDeletedItem = archiveRecord;
+
+      // Konfeti Kutlaması (Sadece ana alanlar için büyük kutlama)
+      if (type === "area") {
+        confetti({ particleCount: 90, spread: 70, origin: { y: 0.6 } });
+      }
+
+      persistLocal();
+      renderAll();
+      showUndoToast("'" + item.title + "' tamamlandı ve arşive kaldırıldı.");
+    }
+
+    function showUndoToast(msg) {
+      var toast = document.getElementById("undo-toast");
+      document.getElementById("undo-msg").textContent = msg;
+      toast.classList.remove("translate-y-[-120%]", "opacity-0");
+      setTimeout(function () {
+        toast.classList.add("translate-y-[-120%]", "opacity-0");
+      }, 5000);
+    }
+
+    function executeUndo() {
+      if (!state.lastDeletedItem) return;
+      var rec = state.lastDeletedItem;
+      state.archive = state.archive.filter(function (a) { return a.id !== rec.id; });
+      if (rec.type === "area") {
+        state.areas.push(rec.itemData);
+      } else {
+        state.subtasks.push(rec.itemData);
+      }
+      state.lastDeletedItem = null;
+      document.getElementById("undo-toast").classList.add("translate-y-[-120%]", "opacity-0");
+      persistLocal();
+      renderAll();
+    }
+
+    // ARŞİV LİSTESİ VE GÖRÜNTÜLEME
+    function openArchiveModal() {
+      renderArchiveList();
+      openModal("archive-modal");
+    }
+
+    function renderArchiveList() {
+      var query = (document.getElementById("archive-search").value || "").toLowerCase();
+      var list = document.getElementById("archive-list");
+      var filtered = state.archive.filter(function (a) {
+        return a.title.toLowerCase().includes(query) || a.areaTitle.toLowerCase().includes(query);
+      });
+
+      if (!filtered.length) {
+        list.innerHTML = '<li class="text-xs muted py-4 text-center">Arşivde kayıt bulunmuyor.</li>';
+        return;
+      }
+
+      list.innerHTML = filtered.map(function (a) {
+        return '<li class="card rounded-xl p-3 flex items-center justify-between gap-3 text-xs">'
+          + '<div>'
+          + '  <div class="font-bold text-[var(--text)]">' + esc(a.title) + '</div>'
+          + '  <div class="muted text-[10px]">' + esc(a.areaTitle) + ' • ' + a.finishedAt + '</div>'
+          + '</div>'
+          + '<button onclick="restoreFromArchive(\'' + a.id + '\')" class="px-2.5 py-1 ghost border border-[var(--border)] rounded-lg text-[10px] font-semibold hover:border-blue-500">Geri Yükle</button>'
+          + '</li>';
+      }).join("");
+    }
+
+    function restoreFromArchive(archId) {
+      var idx = state.archive.findIndex(function (a) { return a.id === archId; });
+      if (idx === -1) return;
+      var rec = state.archive.splice(idx, 1)[0];
+      if (rec.type === "area") {
+        state.areas.push(rec.itemData);
+      } else {
+        state.subtasks.push(rec.itemData);
+      }
+      persistLocal();
+      renderAll();
+      renderArchiveList();
+    }
+
+    // TAKVİM: KESİNTİSİZ ISI HARİTASI (EVERYDAY APP STİLİ)
+    function setCalendarView(v) {
+      state.viewMode = v;
+      document.getElementById("view-monthly-btn").className = v === "monthly" ? "px-2.5 py-1 bg-blue-600 text-white font-semibold" : "px-2.5 py-1 ghost font-semibold";
+      document.getElementById("view-weekly-btn").className = v === "weekly" ? "px-2.5 py-1 bg-blue-600 text-white font-semibold" : "px-2.5 py-1 ghost font-semibold";
+      renderCalendar();
+    }
+
+    function navigatePeriod(step) {
+      if (state.viewMode === "monthly") {
+        state.currentMonth += step;
+        if (state.currentMonth > 11) { state.currentMonth = 0; state.currentYear++; }
+        if (state.currentMonth < 0) { state.currentMonth = 11; state.currentYear--; }
+      } else {
+        state.currentWeekOffset += step;
+      }
+      renderCalendar();
+    }
+
+    function toggleSubtaskCalendarView(checked) {
+      state.showSubtasksInCalendar = checked;
+      persistLocal();
+      renderCalendar();
+    }
+
+    function getDaysToDisplay() {
+      var days = [];
+      if (state.viewMode === "monthly") {
+        var daysInMonth = new Date(state.currentYear, state.currentMonth + 1, 0).getDate();
+        for (var i = 1; i <= daysInMonth; i++) {
+          var dStr = state.currentYear + "-" + String(state.currentMonth + 1).padStart(2, "0") + "-" + String(i).padStart(2, "0");
+          days.push(dStr);
+        }
+      } else {
+        // Haftalık Görünüm (7 Gün)
+        var today = new Date();
+        var curMonday = new Date(today);
+        var dayOfWeek = today.getDay() || 7;
+        curMonday.setDate(today.getDate() - dayOfWeek + 1 + (state.currentWeekOffset * 7));
+        for (var j = 0; j < 7; j++) {
+          var d = new Date(curMonday);
+          d.setDate(curMonday.getDate() + j);
+          days.push(localDate(d));
+        }
+      }
+      return days;
+    }
 
     function renderCalendar() {
-      const grid = document.getElementById('calendarCellsGrid');
-      const titleEl = document.getElementById('calendarTitleText');
-      if (!grid) return;
-      grid.innerHTML = '';
-      titleEl.innerText = "Ekim 2026";
-      const daysInMonth = 31;
-      const tracks = STATE.areas.map(a => ({ key: `area-${a.id}`, label: a.name, color: a.color }));
+      var days = getDaysToDisplay();
+      var monthNames = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
+      
+      // Başlık Etiketi
+      if (state.viewMode === "monthly") {
+        document.getElementById("calendar-period-label").textContent = monthNames[state.currentMonth] + " " + state.currentYear;
+      } else {
+        document.getElementById("calendar-period-label").textContent = days[0] + " — " + days[6];
+      }
 
-      for (let day = 1; day <= daysInMonth; day++) {
-        const dateStr = `2026-10-${String(day).padStart(2, '0')}`;
-        const log = STATE.dayLogs[dateStr] || { hours: {} };
-        let stripsHtml = `<div class="flex flex-col gap-1 mt-1">`;
-        tracks.forEach(tr => {
-          const mins = log.hours[tr.key] || 0;
-          if (mins > 0) {
-            stripsHtml += `<div class="ribbon-strip text-[9px] px-1 text-white rounded font-bold" style="background:${tr.color}">${tr.label} (${formatMinutesLabel(mins)})</div>`;
+      // Üst Başlık Satırı (Günler)
+      var headerRow = document.getElementById("calendar-header-row");
+      var hHtml = '<th class="p-2 border-r border-[var(--border)] min-w-[130px] font-bold">Odak Alanı</th>';
+      days.forEach(function (d) {
+        var dayNum = parseInt(d.split("-")[2], 10);
+        var hasJournal = !!state.dayJournals[d];
+        var isToday = d === todayStr();
+        hHtml += '<th class="p-1.5 text-center cal-cell ' + (isToday ? "text-blue-400 font-black bg-blue-500/10" : "") + '">';
+        hHtml += '  <span class="cursor-pointer" onclick="openDayDetailModal(\'' + d + '\')">' + dayNum + '</span>';
+        if (hasJournal) hHtml += '<span class="w-1 h-1 rounded-full bg-purple-400 block mx-auto mt-0.5"></span>';
+        hHtml += '</th>';
+      });
+      headerRow.innerHTML = hHtml;
+
+      // Gövde Satırları (Everyday App Şeritleri)
+      var bodyRows = document.getElementById("calendar-body-rows");
+      var bHtml = "";
+
+      state.areas.forEach(function (a) {
+        bHtml += '<tr class="border-b border-[var(--border)] hover:bg-[var(--soft)]">';
+        bHtml += '  <td class="p-2 border-r border-[var(--border)] font-semibold flex items-center gap-1.5 truncate">';
+        bHtml += '    <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background:' + a.color + '"></span>';
+        bHtml += '    <span class="truncate">' + esc(a.title) + '</span>';
+        bHtml += '  </td>';
+
+        days.forEach(function (d) {
+          var logs = state.logs.filter(function (l) { return l.areaId === a.id && l.date === d; });
+          var totalMins = logs.reduce(function (s, l) { return s + l.minutes; }, 0);
+          var opacity = totalMins > 0 ? (totalMins >= 60 ? 1 : 0.6) : 0.08;
+
+          bHtml += '<td class="cal-cell p-0 cursor-pointer text-center" onclick="cellClick(\'' + a.id + '\', null, \'' + d + '\')">';
+          if (totalMins > 0) {
+            bHtml += '<div class="w-full h-7 flex items-center justify-center font-bold text-[9px] text-white" style="background:' + a.color + ';opacity:' + opacity + '">';
+            bHtml += formatDuration(totalMins);
+            bHtml += '</div>';
+          } else {
+            bHtml += '<div class="w-full h-7"></div>';
           }
+          bHtml += '</td>';
         });
-        stripsHtml += `</div>`;
-        grid.innerHTML += `<div onclick="openDayModal('${dateStr}')" class="cal-cell min-h-[90px] p-1.5 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 flex flex-col justify-between"><span class="text-xs font-bold">${day}</span>${stripsHtml}</div>`;
+        bHtml += '</tr>';
+
+        // Alt Görev Satırları (Açık ise)
+        if (state.showSubtasksInCalendar) {
+          var subtasks = state.subtasks.filter(function (s) { return s.areaId === a.id; });
+          subtasks.forEach(function (st) {
+            bHtml += '<tr class="border-b border-[var(--border)] bg-[var(--soft)]/50">';
+            bHtml += '  <td class="p-1.5 pl-6 border-r border-[var(--border)] text-[11px] muted flex items-center gap-1 truncate">';
+            bHtml += '    <span>↳</span> <span class="truncate">' + esc(st.title) + '</span>';
+            bHtml += '  </td>';
+
+            days.forEach(function (d) {
+              var sLogs = state.logs.filter(function (l) { return l.subtaskId === st.id && l.date === d; });
+              var sMins = sLogs.reduce(function (s, l) { return s + l.minutes; }, 0);
+              bHtml += '<td class="cal-cell p-0 cursor-pointer text-center" onclick="cellClick(\'' + a.id + '\', \'' + st.id + '\', \'' + d + '\')">';
+              if (sMins > 0) {
+                bHtml += '<div class="w-full h-5 flex items-center justify-center font-bold text-[8px] text-white" style="background:' + a.color + ';opacity:0.7">';
+                bHtml += formatDuration(sMins);
+                bHtml += '</div>';
+              } else {
+                bHtml += '<div class="w-full h-5"></div>';
+              }
+              bHtml += '</td>';
+            });
+            bHtml += '</tr>';
+          });
+        }
+      });
+
+      bodyRows.innerHTML = bHtml;
+    }
+
+    function cellClick(areaId, subtaskId, dateStr) {
+      var minutesStr = prompt("Çalışılan süreyi girin (Dakika):", "30");
+      if (!minutesStr) return;
+      var minutes = parseInt(minutesStr, 10);
+      if (isNaN(minutes) || minutes <= 0) return;
+
+      var newLog = {
+        id: uid("log"),
+        areaId: areaId,
+        subtaskId: subtaskId,
+        date: dateStr,
+        minutes: minutes,
+        note: ""
+      };
+
+      state.logs.push(newLog);
+      persistLocal();
+      renderAll();
+      pushLogCloud(newLog);
+    }
+
+    // GÜN DETAYI VE ETİKET / ŞÜKÜR NOTU MODAL
+    function openDayDetailModal(dateStr) {
+      state.selectedDate = dateStr;
+      document.getElementById("day-modal-date-label").textContent = dateStr + " Gün Detayı";
+      document.getElementById("day-journal-text").value = state.dayJournals[dateStr] || "";
+
+      var logList = document.getElementById("day-modal-log-list");
+      var dLogs = state.logs.filter(function (l) { return l.date === dateStr; });
+
+      if (!dLogs.length) {
+        logList.innerHTML = '<li class="muted py-1">Bu tarihte çalışma kaydı bulunmuyor.</li>';
+      } else {
+        logList.innerHTML = dLogs.map(function (l) {
+          var a = state.areas.find(function (x) { return x.id === l.areaId; });
+          var st = state.subtasks.find(function (s) { return s.id === l.subtaskId; });
+          var title = (a ? a.title : "") + (st ? " > " + st.title : "");
+          return '<li class="p-2 rounded-lg bg-[var(--soft)] border border-[var(--border)] flex justify-between items-center">'
+            + '<span>' + esc(title) + '</span>'
+            + '<span class="font-bold text-blue-400">' + formatDuration(l.minutes) + '</span>'
+            + '</li>';
+        }).join("");
+      }
+
+      openModal("day-modal");
+    }
+
+    function saveDayJournal() {
+      if (!state.selectedDate) return;
+      var txt = document.getElementById("day-journal-text").value.trim();
+      if (txt) {
+        state.dayJournals[state.selectedDate] = txt;
+      } else {
+        delete state.dayJournals[state.selectedDate];
+      }
+      persistLocal();
+      closeModal("day-modal");
+      renderAll();
+    }
+
+    // ETİKET FİLTRELEME VE HAFIZA SİSTEMİ
+    function renderTags() {
+      var list = document.getElementById("tag-list");
+      list.innerHTML = state.tags.map(function (t) {
+        return '<button onclick="filterByTag(\'' + t + '\')" class="px-2 py-0.5 rounded-lg text-[10px] font-bold field ghost border border-[var(--border)]">' + esc(t) + '</button>';
+      }).join("");
+    }
+
+    function filterByTag(tag) {
+      state.activeTagFilter = tag;
+      document.getElementById("tag-filter-display").classList.remove("hidden");
+      document.getElementById("active-tag-title").textContent = tag;
+
+      var resList = document.getElementById("tag-results-list");
+      var matches = [];
+      Object.keys(state.dayJournals).forEach(function (d) {
+        if (state.dayJournals[d].includes(tag)) {
+          matches.push({ date: d, text: state.dayJournals[d] });
+        }
+      });
+
+      if (!matches.length) {
+        resList.innerHTML = '<li class="muted">Bu etikete ait not bulunamadı.</li>';
+      } else {
+        resList.innerHTML = matches.map(function (m) {
+          return '<li class="p-1 rounded bg-[var(--hover)] border border-[var(--border)]/50 cursor-pointer" onclick="openDayDetailModal(\'' + m.date + '\')">'
+            + '<strong>' + m.date + ':</strong> ' + esc(m.text)
+            + '</li>';
+        }).join("");
       }
     }
 
-    function navigateCalendar(dir) {
-      STATE.month += dir;
+    function clearTagFilter() {
+      state.activeTagFilter = null;
+      document.getElementById("tag-filter-display").classList.add("hidden");
+    }
+
+    function addNewTagModal() {
+      var t = prompt("Yeni etiket adı (Örn: #proje):");
+      if (!t || !t.trim()) return;
+      var clean = t.trim().startsWith("#") ? t.trim() : "#" + t.trim();
+      if (!state.tags.includes(clean)) {
+        state.tags.push(clean);
+        persistLocal();
+        renderTags();
+      }
+    }
+
+    // VERİYİ İNDİR (AI ANALİZİ VE YEDEK İÇİN)
+    function exportDataPrompt() {
+      var exportObj = {
+        kullanici: "Furkan A. Karacabey",
+        tarih: new Date().toISOString(),
+        odak_alanlari: state.areas,
+        alt_gorevler: state.subtasks,
+        notlar: state.notes,
+        etiket_gunlukleri: state.dayJournals,
+        tamamlanan_arsiv: state.archive,
+        calisma_kayitlari: state.logs
+      };
+
+      var dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportObj, null, 2));
+      var downloadAnchor = document.createElement("a");
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", "focodesk_calisma_raporu_" + todayStr() + ".json");
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+    }
+
+    // MODAL YÖNETİMİ
+    function openModal(id) {
+      var el = document.getElementById(id);
+      if (el) { el.classList.remove("hidden"); el.classList.add("flex"); }
+    }
+    function closeModal(id) {
+      var el = document.getElementById(id);
+      if (el) { el.classList.add("hidden"); el.classList.remove("flex"); }
+    }
+    function openHowToModal() { openModal("howto-modal"); }
+    function addNewAreaModal() {
+      var t = prompt("Yeni Odak Alanı Adı:");
+      if (!t || !t.trim()) return;
+      var newArea = { id: uid("area"), title: t.trim(), color: PALETTE[state.areas.length % PALETTE.length], isChain: true };
+      state.areas.push(newArea);
+      persistLocal();
+      renderAll();
+    }
+    function toggleSection(id) {
+      var el = document.getElementById(id);
+      if (el) el.classList.toggle("hidden");
+    }
+    function toggleTheme() {
+      var cur = state.prefs.theme === "dark" ? "light" : "dark";
+      state.prefs.theme = cur;
+      document.documentElement.setAttribute("data-theme", cur);
+      document.documentElement.classList.toggle("dark", cur === "dark");
+      localStorage.setItem("foco_theme", cur);
+      persistLocal();
+      var btn = document.getElementById("theme-btn");
+      if (btn) btn.innerHTML = cur === "dark" ? '<i class="fas fa-sun text-xs"></i>' : '<i class="fas fa-moon text-xs"></i>';
+    }
+
+    // SUPABASE BULUT SENKRONİZASYONU
+    function initSupabase() {
+      if (!window.supabase) return;
+      state.supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      checkUserSession();
+    }
+
+    async function currentSession() {
+      if (!state.supabaseClient) return null;
+      var res = await state.supabaseClient.auth.getSession();
+      return res.data ? res.data.session : null;
+    }
+
+    async function checkUserSession() {
+      var session = await currentSession();
+      var authBtn = document.getElementById("auth-btn-text");
+      if (session && authBtn) {
+        var username = session.user.email ? session.user.email.split("@")[0] : "Giriş Yapıldı";
+        authBtn.textContent = username;
+        pullCloudData();
+      }
+    }
+
+    async function handleAuthClick() {
+      if (!state.supabaseClient) return;
+      var session = await currentSession();
+      if (session) {
+        if (confirm("Çıkış yapmak istiyor musunuz?")) {
+          await state.supabaseClient.auth.signOut();
+          document.getElementById("auth-btn-text").textContent = "Google ile Giriş";
+        }
+      } else {
+        await state.supabaseClient.auth.signInWithOAuth({
+          provider: "google",
+          options: { redirectTo: window.location.origin }
+        });
+      }
+    }
+
+    async function pullCloudData() {
+      if (!state.supabaseClient) return;
+      try {
+        var resLogs = await state.supabaseClient.from("habit_logs").select("*");
+        if (resLogs.data && resLogs.data.length > 0) {
+          resLogs.data.forEach(function (row) {
+            var exists = state.logs.some(function (l) { return l.areaId === row.habit_id && l.date === row.log_date; });
+            if (!exists && row.duration_minutes > 0) {
+              state.logs.push({
+                id: uid("cloud_log"),
+                areaId: row.habit_id,
+                subtaskId: null,
+                date: row.log_date,
+                minutes: row.duration_minutes,
+                note: row.notes || ""
+              });
+            }
+          });
+          persistLocal();
+          renderAll();
+        }
+      } catch (e) {}
+    }
+
+    async function pushLogCloud(log) {
+      var session = await currentSession();
+      if (!session || !state.supabaseClient) return;
+      try {
+        await state.supabaseClient.from("habit_logs").upsert({
+          habit_id: log.areaId,
+          user_id: session.user.id,
+          log_date: log.date,
+          duration_minutes: log.minutes,
+          notes: log.note || ""
+        }, { onConflict: "habit_id,log_date" });
+      } catch (e) {}
+    }
+
+    // TÜM EKRANLARI YENİLEME
+    function renderAll() {
+      renderAreas();
+      renderTags();
+      renderAnalysisContent();
       renderCalendar();
     }
 
-    function setCalendarView(v) { STATE.calendarView = v; renderCalendar(); }
-    function toggleSubtasksCalendarView(c) { STATE.showSubtasksInCalendar = c; renderCalendar(); }
-
-    function openDayModal(dateStr) {
-      STATE.activeDayModalDate = dateStr;
-      document.getElementById('dayModalTitle').innerText = dateStr;
-      const modal = document.getElementById('dayModal');
-      modal.classList.remove('hidden'); modal.classList.add('flex');
-    }
-    function closeDayModal() { document.getElementById('dayModal').classList.add('hidden'); }
-
-    function openArchiveModal() {
-      const modal = document.getElementById('archiveModal');
-      modal.classList.remove('hidden'); modal.classList.add('flex');
-    }
-    function closeArchiveModal() { document.getElementById('archiveModal').classList.add('hidden'); }
-
-    function openGoogleAuthModal() {
-      const modal = document.getElementById('googleAuthModal');
-      modal.classList.remove('hidden'); modal.classList.add('flex');
-    }
-    function closeGoogleAuthModal() { document.getElementById('googleAuthModal').classList.add('hidden'); }
-    function confirmGoogleLogin() {
-      const name = document.getElementById('googleNameInput').value.trim() || 'Kullanıcı';
-      document.getElementById('googleAuthLoggedInView').classList.remove('hidden');
-      document.getElementById('googleAuthLoggedOutView').classList.add('hidden');
-      document.getElementById('googleProfileName').innerText = name;
-      document.getElementById('googleAuthBtnText').innerText = name;
-    }
-    function logoutGoogleAccount() {
-      document.getElementById('googleAuthLoggedInView').classList.add('hidden');
-      document.getElementById('googleAuthLoggedOutView').classList.remove('hidden');
-      document.getElementById('googleAuthBtnText').innerText = 'Google ile Giriş';
-      closeGoogleAuthModal();
+    // UYGULAMA BAŞLANGICI
+    function initApp() {
+      loadInitialData();
+      tickClock();
+      setInterval(tickClock, 1000);
+      loadWeather();
+      setInterval(loadWeather, 15 * 60 * 1000);
+      initSupabase();
+      renderAll();
     }
 
-    function toggleTimerPopover() { document.getElementById('timerPopover').classList.toggle('hidden'); }
-    function setTimerCustomMins(val) { STATE.timerMins = parseInt(val) || 25; STATE.timerSecs = STATE.timerMins * 60; }
-    function startPauseTimer() { STATE.timerRunning = !STATE.timerRunning; }
-    function resetTimer() { STATE.timerSecs = STATE.timerMins * 60; }
-    function logTimerToToday() { toggleTimerPopover(); }
-    function playTimerAlarmSound() {}
-    function populateTimerDropdown() {}
-
-    function toggleNewGroupForm() { document.getElementById('newGroupFormBox').classList.toggle('hidden'); }
-    function createNewFocusGroup() {
-      const title = document.getElementById('newGroupTitleInput').value.trim();
-      if (title) { STATE.focusGroups.push({ id: 'grp-' + Date.now(), title, collapsed: false }); renderAll(); }
-      toggleNewGroupForm();
-    }
-    function toggleExportMenu() { document.getElementById('exportMenu').classList.toggle('hidden'); }
-    function exportData(type) { alert(type.toUpperCase() + ' dışa aktarma hazır.'); }
-    function undoLastFinishAction() {}
-    function addJournalToDay() {}
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", initApp);
+    else initApp();
   </script>
 </body>
 </html>
