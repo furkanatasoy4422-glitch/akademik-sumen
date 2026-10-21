@@ -386,7 +386,51 @@
   </main>
 
 
+  <div id="aiChatModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+    <div class="bg-white dark:bg-[#151e31] border border-slate-200 dark:border-slate-700 rounded-2xl w-full max-w-lg flex flex-col h-[70vh] shadow-2xl overflow-hidden">
+      <div class="flex justify-between items-center p-3.5 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#111827]">
+        <div class="flex items-center gap-2">
+          <div class="w-6 h-6 rounded-lg bg-indigo-600 text-white flex items-center justify-center text-xs font-bold">⚡</div>
+          <h3 class="text-xs font-bold text-slate-900 dark:text-white">FocoDesk Akademik Danışmanı</h3>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <button onclick="openConfigModal()" title="API Anahtarı Ayarı" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1">
+            <i data-lucide="settings" class="w-4 h-4"></i>
+          </button>
+          <button onclick="toggleChatModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1">
+            <i data-lucide="x" class="w-4 h-4"></i>
+          </button>
+        </div>
+      </div>
+      <div id="chatMessages" class="flex-1 p-4 overflow-y-auto flex flex-col gap-3 text-xs">
+        <div class="self-start p-3 rounded-2xl max-w-[85%] bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200">
+          Merhaba! Aktif odak alanlarını, sürelerini ve çalışma ritmini görebiliyorum. Akademik hedeflerin veya bugünkü planınla ilgili ne danışmak istersin?
+        </div>
+      </div>
+      <div class="p-3 border-t border-slate-200 dark:border-slate-800 flex gap-2 bg-slate-50 dark:bg-[#111827]">
+        <textarea id="chatInput" rows="2" placeholder="Sorunu yazıp Enter'a bas..." class="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs outline-none focus:border-indigo-500 resize-none text-slate-800 dark:text-slate-200" onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault(); sendChatMessage();}"></textarea>
+        <button onclick="sendChatMessage()" class="px-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition flex items-center justify-center">
+          <i data-lucide="send" class="w-4 h-4"></i>
+        </button>
+      </div>
+    </div>
+  </div>
 
+  <!-- GEMINI API AYARLARI MODALI -->
+  <div id="configModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+    <div class="bg-white dark:bg-[#151e31] border border-slate-200 dark:border-slate-700 rounded-2xl p-5 w-full max-w-sm flex flex-col gap-3 shadow-2xl">
+      <h3 class="text-sm font-bold text-slate-900 dark:text-white">Gemini API Ayarları</h3>
+      <div>
+        <label class="text-[11px] font-semibold text-slate-500 uppercase">Gemini API Key</label>
+        <input id="cfgGeminiKey" type="password" placeholder="AIzaSy..." class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-2 text-xs mt-1 outline-none focus:border-indigo-500 text-slate-800 dark:text-slate-200">
+        <span class="text-[10px] text-slate-400 mt-1 block">aistudio.google.com üzerinden aldığınız anahtarı girin.</span>
+      </div>
+      <div class="flex justify-end gap-2 mt-2">
+        <button onclick="closeConfigModal()" class="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-600 dark:text-slate-300">Kapat</button>
+        <button onclick="saveGeminiConfig()" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold">Kaydet</button>
+      </div>
+    </div>
+  </div>
 
   <!-- GÜNLÜK DETAY MODALI -->
   <div id="dayModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
@@ -1911,7 +1955,75 @@
       document.getElementById('timerPopover').classList.add('hidden');
     }
 
-  
+    // ==========================================
+    // 10. GEMINI AKILLI AKADEMİK DANIŞMANI
+    // ==========================================
+    function toggleChatModal() {
+      const m = document.getElementById('aiChatModal');
+      m.classList.toggle('hidden');
+      m.classList.toggle('flex');
+    }
+    function openConfigModal() {
+      document.getElementById('cfgGeminiKey').value = localStorage.getItem('gemini_api_key') || '';
+      const m = document.getElementById('configModal');
+      m.classList.remove('hidden');
+      m.classList.add('flex');
+    }
+    function closeConfigModal() {
+      document.getElementById('configModal').classList.add('hidden');
+      document.getElementById('configModal').classList.remove('flex');
+    }
+    function saveGeminiConfig() {
+      const val = document.getElementById('cfgGeminiKey').value.trim();
+      if (val) localStorage.setItem('gemini_api_key', val);
+      closeConfigModal();
+    }
+    async function sendChatMessage() {
+      const input = document.getElementById('chatInput');
+      const text = input.value.trim();
+      if (!text) return;
+      const key = localStorage.getItem('gemini_api_key');
+      if (!key) {
+        alert('Lütfen önce ayarlar simgesine tıklayıp Gemini API anahtarınızı girin.');
+        openConfigModal();
+        return;
+      }
+      const chat = document.getElementById('chatMessages');
+      chat.innerHTML += `<div class="bg-indigo-600 text-white self-end p-3 rounded-2xl max-w-[85%] whitespace-pre-wrap">${text}</div>`;
+      input.value = '';
+      chat.scrollTop = chat.scrollHeight;
+
+      const loadingId = 'load_' + Date.now();
+      chat.innerHTML += `<div id="${loadingId}" class="self-start p-3 rounded-2xl max-w-[85%] bg-slate-100 dark:bg-slate-800 text-slate-500">Cevap hazırlanıyor...</div>`;
+      chat.scrollTop = chat.scrollHeight;
+
+      const promptData = {
+        alanlar: STATE.areas.map(a => ({ ad: a.name, altGorevler: (a.subtasks||[]).map(s => s.title) })),
+        kayitlar: STATE.dayLogs
+      };
+      const sysPrompt = `Sen FocoDesk akıllı akademik asistanısın. Kullanıcı verileri: ${JSON.stringify(promptData)}. Net, samimi ve motive edici Türkçe cevap ver.`;
+
+      let reply = "Cevap üretilemedi.";
+      try {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: `${sysPrompt}\n\nSoru: ${text}` }] }] })
+        });
+        const data = await res.json();
+        if (data.candidates && data.candidates[0]?.content?.parts[0]) {
+          reply = data.candidates[0].content.parts[0].text;
+        } else if (data.error) {
+          reply = "API Hatası: " + data.error.message;
+        }
+      } catch (err) {
+        reply = "Bağlantı hatası: " + err.message;
+      }
+      document.getElementById(loadingId)?.remove();
+      chat.innerHTML += `<div class="self-start p-3 rounded-2xl max-w-[85%] bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 whitespace-pre-wrap leading-relaxed">${reply}</div>`;
+      chat.scrollTop = chat.scrollHeight;
+    }
+
     // ==========================================
     // 11. ARŞİV VE DIŞA AKTARIM
     // ==========================================
