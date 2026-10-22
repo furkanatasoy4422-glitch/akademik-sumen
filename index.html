@@ -1794,8 +1794,22 @@
     // ==========================================
     // 7. TAKVİM VE GÜN HÜCRELERİ
     // ==========================================
+    function getMondayStartDate(referenceDate) {
+      const startDate = new Date(referenceDate);
+      const dayOfWeek = startDate.getDay();
+      const diff = (dayOfWeek === 0 ? -6 : 1 - dayOfWeek);
+      startDate.setDate(startDate.getDate() + diff);
+      return startDate;
+    }
+    function formatLocalDate(date) {
+      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    }
     function setCalendarView(v) {
       STATE.calendarView = v;
+      if (v === 'week') {
+        const referenceDate = new Date(`${STATE.weekStartDate}T12:00:00`);
+        STATE.weekStartDate = formatLocalDate(getMondayStartDate(referenceDate));
+      }
       document.getElementById('calViewMonthBtn').className = v === 'month' ? "px-3 py-1 rounded-lg bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white transition" : "px-3 py-1 rounded-lg text-slate-500 transition";
       document.getElementById('calViewWeekBtn').className = v === 'week' ? "px-3 py-1 rounded-lg bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white transition" : "px-3 py-1 rounded-lg text-slate-500 transition";
       saveLocal();
@@ -1889,12 +1903,14 @@
       const tracks = getCalendarTracks();
 
       if (STATE.calendarView === 'week') {
-        const startObj = new Date(STATE.weekStartDate + 'T12:00:00');
+        const referenceDate = new Date(`${STATE.weekStartDate}T12:00:00`);
+        const startObj = getMondayStartDate(referenceDate);
+        STATE.weekStartDate = formatLocalDate(startObj);
         titleEl.innerText = `${startObj.getDate()} ${months[startObj.getMonth()]} Haftası`;
         for (let i = 0; i < 7; i++) {
           const cur = new Date(startObj);
           cur.setDate(startObj.getDate() + i);
-          const dStr = cur.toISOString().slice(0, 10);
+          const dStr = formatLocalDate(cur);
           grid.innerHTML += buildDayCellHtml(dStr, `${cur.getDate()} ${months[cur.getMonth()].slice(0,3)}`, dStr === TODAY_STR, tracks, true);
         }
       } else {
@@ -1915,9 +1931,9 @@
 
     function navigateCalendar(dir) {
       if (STATE.calendarView === 'week') {
-        const d = new Date(STATE.weekStartDate + 'T12:00:00');
-        d.setDate(d.getDate() + (dir * 7));
-        STATE.weekStartDate = d.toISOString().slice(0, 10);
+        const startDate = getMondayStartDate(new Date(`${STATE.weekStartDate}T12:00:00`));
+        startDate.setDate(startDate.getDate() + (dir * 7));
+        STATE.weekStartDate = formatLocalDate(startDate);
       } else {
         STATE.month += dir;
         if (STATE.month < 0) { STATE.month = 11; STATE.year--; }
