@@ -1801,36 +1801,36 @@
       cont.innerHTML = '';
       let totalM = 0;
 
-      const groupedAreas = STATE.focusGroups
-        .map(group => ({
-          group,
-          areas: STATE.areas.filter(a => a.groupId === group.id)
-        }))
-        .filter(item => item.areas.length > 0);
+      // Odak pencerelerine (gruplara) göre grupla
+      (STATE.focusGroups || []).forEach((group, gIdx) => {
+        const groupAreas = (STATE.areas || []).filter(a => a.groupId === group.id);
+        if (!groupAreas.length) return; // Boş grubu gösterme
 
-      groupedAreas.forEach(({ group, areas }, groupIndex) => {
-        const groupRows = areas.map(a => {
+        // Gruplar arasına başlık ve çizgi koy
+        const groupHeaderHtml = `
+          <div class="${gIdx > 0 ? 'border-t border-slate-200 dark:border-slate-800 pt-3 mt-3' : 'pt-1'} mb-2">
+            <span class="text-[11px] font-extrabold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">${group.title}</span>
+          </div>
+        `;
+        cont.innerHTML += groupHeaderHtml;
+
+        // Gruba ait alanları bas
+        groupAreas.forEach(a => {
           const curMins = log.hours[`area-${a.id}`] || 0;
           totalM += curMins;
-          return `
-            <div class="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-              <span class="text-xs font-bold flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full" style="background-color:${a.color}"></span>${a.name}</span>
+          cont.innerHTML += `
+            <div class="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 mb-1.5">
+              <span class="text-xs font-bold flex items-center gap-1.5 text-slate-800 dark:text-slate-100">
+                <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color:${a.color}"></span>
+                ${a.name}
+              </span>
               <div class="flex items-center gap-1.5">
-                <input type="number" step="5" min="0" max="1440" value="${curMins}" onchange="setModalTrackMinutes('area-${a.id}', this.value)" class="w-16 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-xs font-bold text-center">
-                <span class="text-[11px] text-slate-400">dk</span>
+                <input type="number" step="5" min="0" max="1440" value="${curMins}" onchange="setModalTrackMinutes('area-${a.id}', this.value)" class="w-16 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-xs font-bold text-center text-slate-800 dark:text-slate-100 outline-none">
+                <span class="text-[11px] text-slate-400 font-bold">dk</span>
               </div>
             </div>
           `;
-        }).join('');
-
-        if (!groupRows) return;
-
-        cont.innerHTML += `
-          <div class="${groupIndex > 0 ? 'border-t border-slate-200 dark:border-slate-800 pt-3 mt-3' : ''}">
-            <div class="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 mb-2">${group.title}</div>
-            <div class="flex flex-col gap-1.5">${groupRows}</div>
-          </div>
-        `;
+        });
       });
 
       document.getElementById('dayModalTotalSub').innerText = `Toplam ${formatMinutesLabel(totalM)} odak kaydedildi`;
