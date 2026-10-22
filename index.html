@@ -358,7 +358,7 @@
         </div>
 
         <!-- SAĞ KART: GERÇEK VERİ ANALİZİ -->
-        <div class="md:col-span-8 bg-white dark:bg-[#111827] rounded-2xl border border-[#e2e8f0] dark:border-slate-800 p-4 shadow-sm flex items-stretch justify-between gap-3 min-h-[175px]">
+        <div class="md:col-span-8 max-h-[195px] overflow-hidden bg-white dark:bg-[#111827] rounded-2xl border border-[#e2e8f0] dark:border-slate-800 p-4 shadow-sm flex items-stretch justify-between gap-3 min-h-[175px]">
           <div class="flex-1 flex flex-col justify-between min-w-0">
             <div class="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-100 dark:border-slate-800/80">
               <div class="flex items-center gap-2">
@@ -1069,6 +1069,7 @@
       });
       STATE.expandedAreaId = newId;
       inp.value = '';
+      delete newAreaColorByGroup[groupId];
       saveLocal();
       renderAll();
     }
@@ -1586,6 +1587,9 @@
 
       if (STATE.analysisSlide === 0) {
         titleEl.innerText = '1. Odak Alanı Dağılımı';
+        bodyEl.className = 'my-auto py-1 flex flex-col gap-2 max-h-[145px] overflow-y-auto pr-2';
+        bodyEl.style.maxHeight = '145px';
+        bodyEl.style.overflowY = 'auto';
         let totalAll = 0;
         const rows = STATE.areas.map(a => {
           let m = 0, d = 0;
@@ -1614,6 +1618,10 @@
           `;
         }).join('');
       } else {
+        bodyEl.className = 'my-auto py-2 flex flex-col gap-2';
+        bodyEl.style.maxHeight = '';
+        bodyEl.style.overflowY = '';
+
         titleEl.innerText = '2. Ritim & Genel İlerleme';
         let activeDays = 0, totalMins = 0;
         Object.entries(STATE.dayLogs).forEach(([dStr, log]) => {
