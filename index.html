@@ -244,6 +244,11 @@
           </button>
         </div>
       </div>
+      <button onclick="document.getElementById('backupFileInput').click()" title="JSON yedeğini yükle" class="flex items-center gap-1.5 px-2.5 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200/60 dark:border-slate-700/60 text-xs font-bold transition">
+        <i data-lucide="upload" class="w-4 h-4"></i>
+        <span>Yedek Yükle</span>
+      </button>
+      <input id="backupFileInput" type="file" accept=".json,application/json" class="hidden" onchange="importBackup(this)">
 
       <!-- Tema Değiştirici -->
       <button onclick="toggleTheme()" title="Aydınlık / Karanlık Mod" class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 border border-slate-200/60 dark:border-slate-700/60 transition">
@@ -690,6 +695,10 @@
           syncAllToCloud();
         }, 800);
       }
+    }
+
+    function saveState() {
+      saveLocal();
     }
 
     function loadLocal() {
@@ -2045,6 +2054,30 @@
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
+    }
+
+    async function importBackup(input) {
+      const file = input.files[0];
+      if (!file) return;
+
+      try {
+        const importedState = JSON.parse(await file.text());
+        if (!importedState || typeof importedState !== 'object' || Array.isArray(importedState) ||
+            !Array.isArray(importedState.areas) || !Array.isArray(importedState.focusGroups) ||
+            !Array.isArray(importedState.tags) || !importedState.dayLogs ||
+            typeof importedState.dayLogs !== 'object' || Array.isArray(importedState.dayLogs)) {
+          throw new Error('Geçersiz yedek dosyası');
+        }
+
+        Object.assign(STATE, importedState);
+        renderAll();
+        saveState();
+        alert('Yedek başarıyla yüklendi.');
+      } catch (error) {
+        alert('Yedek dosyası okunamadı veya geçerli bir FocoDesk yedeği değil.');
+      } finally {
+        input.value = '';
+      }
     }
 
     function openHowToUseModal() {
