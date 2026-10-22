@@ -565,6 +565,7 @@
     let draggedAreaId = null;
 
     let STATE = {
+      theme: 'light',
       year: new Date().getFullYear(),
       month: new Date().getMonth(),
       calendarView: 'month',
@@ -890,6 +891,7 @@
 
     function toggleTheme() {
       const isDark = document.documentElement.classList.toggle('dark');
+      STATE.theme = document.documentElement.classList.contains('dark') ? 'dark' : 'light';
       const iconEl = document.getElementById('themeToggleIcon');
       if (iconEl) iconEl.setAttribute('data-lucide', isDark ? 'sun' : 'moon');
       saveLocal();
@@ -1033,7 +1035,9 @@
       if (!box) return;
       box.classList.toggle('hidden');
       if (!box.classList.contains('hidden')) {
-        newAreaColorByGroup[groupId] = PRESET_COLORS[Math.floor(Math.random() * PRESET_COLORS.length)];
+        const usedColors = STATE.areas.map(a => a.color.toLowerCase());
+        const unusedColor = PRESET_COLORS.find(c => !usedColors.includes(c.toLowerCase()));
+        newAreaColorByGroup[groupId] = unusedColor || PRESET_COLORS[Math.floor(Math.random() * PRESET_COLORS.length)];
         renderNewAreaPaletteInGroup(groupId);
         document.getElementById(`newAreaInput-${groupId}`).focus();
       }
@@ -2093,6 +2097,13 @@
 
     window.onload = async function() {
       loadLocal();
+      if (STATE.theme === 'dark') {
+        document.documentElement.classList.add('dark');
+        const iconEl = document.getElementById('themeToggleIcon');
+        if (iconEl) iconEl.setAttribute('data-lucide', 'sun');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
       updateClock();
       setInterval(updateClock, 1000);
       renderAll();
