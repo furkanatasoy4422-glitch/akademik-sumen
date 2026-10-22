@@ -551,7 +551,15 @@
     const STORE_KEY = "foco_v3_state";
     let supabaseClient = null;
 
-    const PRESET_COLORS = ['#dc2626', '#16a34a', '#7c3aed', '#d97706', '#0284c7', '#db2777', '#65a30d', '#ea580c', '#0891b2', '#4f46e5'];
+    const PRESET_COLORS = [
+      '#e11d48', '#2563eb', '#16a34a', '#d97706', '#7c3aed', '#0891b2',
+      '#ea580c', '#4f46e5', '#059669', '#c026d3', '#0284c7', '#65a30d',
+      '#f43f5e', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4',
+      '#f97316', '#6366f1', '#84cc16', '#ec4899', '#14b8a6', '#eab308',
+      '#a855f7', '#0ea5e9', '#22c55e', '#fb923c', '#818cf8', '#2dd4bf',
+      '#facc15', '#d946ef'
+    ];
+    const DEFAULT_AREA_DAILY_MINUTES = 60;
 
     function getTodayLocalDate() {
       const d = new Date();
@@ -1048,11 +1056,24 @@
       if (!box.classList.contains('hidden')) {
         const usedColors = STATE.areas.map(a => a.color.toLowerCase());
         const unusedColors = PRESET_COLORS.filter(c => !usedColors.includes(c.toLowerCase()));
-        let pickedColor = unusedColors[Math.floor(Math.random() * unusedColors.length)] || PRESET_COLORS[Math.floor(Math.random() * PRESET_COLORS.length)];
-        if (!unusedColors.length) {
-          const fallbackBase = PRESET_COLORS[Math.floor(Math.random() * PRESET_COLORS.length)];
-          const fallbackPool = PRESET_COLORS.filter(c => c.toLowerCase() !== fallbackBase.toLowerCase());
-          pickedColor = fallbackPool[Math.floor(Math.random() * fallbackPool.length)] || fallbackBase;
+        let pickedColor;
+        if (unusedColors.length) {
+          pickedColor = unusedColors[Math.floor(Math.random() * unusedColors.length)];
+        } else {
+          const recentAreas = STATE.areas.slice(-3);
+          const recentHues = recentAreas.map(area => hexToHsl(area.color).h);
+          const contrastColors = PRESET_COLORS.map(color => {
+            const hue = hexToHsl(color).h;
+            const minHueDistance = recentHues.length
+              ? Math.min(...recentHues.map(recentHue => Math.abs(((hue - recentHue + 540) % 360) - 180)))
+              : 180;
+            return { color, minHueDistance };
+          });
+          const maxHueDistance = Math.max(...contrastColors.map(item => item.minHueDistance));
+          const contrastPool = contrastColors
+            .filter(item => item.minHueDistance === maxHueDistance)
+            .map(item => item.color);
+          pickedColor = contrastPool[Math.floor(Math.random() * contrastPool.length)];
         }
         newAreaColorByGroup[groupId] = pickedColor;
         renderNewAreaPaletteInGroup(groupId);
@@ -1196,7 +1217,6 @@
           groupAreas.forEach(area => {
             const isExpanded = STATE.expandedAreaId === area.id;
             const isAreaEditing = STATE.editingAreaId === area.id;
-            const stats = getTrackStats(`area-${area.id}`);
             const todayAreaMins = todayLog.hours[`area-${area.id}`] || 0;
             const isAreaChained = area.chained !== false;
 
@@ -1276,7 +1296,7 @@
                   </div>
                   <div class="flex items-center gap-1 shrink-0">
                     <button onclick="toggleMainAreaChainLink('${area.id}')" class="w-6 h-6 rounded-md flex items-center justify-center ${isAreaChained ? 'text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}" style="${isAreaChained ? `background-color:${area.color}` : ''}"><i data-lucide="link" class="w-3 h-3"></i></button>
-                    <button onclick="quickLogAreaToday('${area.id}')" class="text-[10px] font-extrabold px-1.5 py-0.5 rounded-md ${todayAreaMins > 0 ? 'text-white' : 'text-slate-500 bg-slate-100 dark:bg-slate-800'}" style="${todayAreaMins > 0 ? `background-color:${area.color}` : ''}">${formatMinutesLabel(stats.mins, true)}</button>
+                    <button onclick="quickLogAreaToday('${area.id}')" title="Bugüne ${DEFAULT_AREA_DAILY_MINUTES} dakika ekle veya kaldır" class="text-[10px] font-extrabold px-1.5 py-0.5 rounded-md ${todayAreaMins > 0 ? 'text-white' : 'text-slate-500 bg-slate-100 dark:bg-slate-800'}" style="${todayAreaMins > 0 ? `background-color:${area.color}` : ''}">${todayAreaMins > 0 ? formatMinutesLabel(todayAreaMins, true) : `+${DEFAULT_AREA_DAILY_MINUTES}dk`}</button>
                     <button onclick="finishMainArea('${area.id}')" class="w-6 h-6 rounded-md bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/50 border border-amber-200/70 text-xs flex items-center justify-center">🎉</button>
                     <button onclick="deleteMainArea('${area.id}')" title="Odak alanını sil" aria-label="Odak alanını sil" class="w-6 h-6 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 flex items-center justify-center"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>
                     <button onclick="toggleExpandArea('${area.id}')" class="text-slate-400 p-0.5"><i data-lucide="${isExpanded ? 'chevron-up' : 'chevron-down'}" class="w-3.5 h-3.5"></i></button>
@@ -1395,7 +1415,7 @@
       if (log.hours[key] > 0) {
         delete log.hours[key];
       } else {
-        newMins = 60;
+        newMins = DEFAULT_AREA_DAILY_MINUTES;
         log.hours[key] = newMins;
       }
       saveLocal();
