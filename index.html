@@ -1624,9 +1624,17 @@
         <button onclick="goToAnalysisSlide(${i})" class="w-2 rounded-full transition-all ${STATE.analysisSlide === i ? 'h-5 bg-indigo-600 dark:bg-indigo-400' : 'h-2 bg-slate-300 dark:bg-slate-700'}"></button>
       `).join('');
 
-      const cutoffDate = STATE.analysisPeriod === 'week' ? new Date(Date.now() - 7*86400000).toISOString().slice(0,10) : new Date(STATE.year, STATE.month, 1).toISOString().slice(0,10);
       const today = new Date();
       const dateKey = date => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+      const analysisWeekStart = getMondayStartDate(today);
+      const analysisWeekEnd = new Date(analysisWeekStart);
+      analysisWeekEnd.setDate(analysisWeekStart.getDate() + 6);
+      const analysisStartDate = STATE.analysisPeriod === 'week'
+        ? formatLocalDate(analysisWeekStart)
+        : formatLocalDate(new Date(STATE.year, STATE.month, 1));
+      const analysisEndDate = STATE.analysisPeriod === 'week'
+        ? formatLocalDate(analysisWeekEnd)
+        : formatLocalDate(new Date(STATE.year, STATE.month + 1, 0));
       const sumFocusMinutesBetween = (start, end) => {
         let total = 0;
         for (const [dateStr, log] of Object.entries(STATE.dayLogs)) {
@@ -1646,7 +1654,7 @@
         const rows = STATE.areas.map(a => {
           let m = 0, d = 0;
           Object.entries(STATE.dayLogs).forEach(([dStr, log]) => {
-            if (dStr >= cutoffDate && log.hours && log.hours[`area-${a.id}`] > 0) {
+            if (dStr >= analysisStartDate && dStr <= analysisEndDate && log.hours && log.hours[`area-${a.id}`] > 0) {
               m += log.hours[`area-${a.id}`];
               d++;
             }
@@ -1677,7 +1685,7 @@
         titleEl.innerText = '2. Ritim & Genel İlerleme';
         let activeDays = 0, totalMins = 0;
         Object.entries(STATE.dayLogs).forEach(([dStr, log]) => {
-          if (dStr >= cutoffDate) {
+          if (dStr >= analysisStartDate && dStr <= analysisEndDate) {
             let s = 0;
             Object.values(log.hours || {}).forEach(v => s += v);
             if (s > 0) { activeDays++; totalMins += s; }
@@ -1737,13 +1745,13 @@
           const areaTotals = STATE.areas.map(area => ({
             area,
             minutes: Object.entries(STATE.dayLogs)
-              .filter(([dateStr]) => dateStr >= cutoffDate && dateStr <= dateKey(today))
+              .filter(([dateStr]) => dateStr >= analysisStartDate && dateStr <= analysisEndDate)
               .reduce((sum, [, log]) => sum + (Number(log.hours?.[`area-${area.id}`]) || 0), 0)
           }));
           const topArea = areaTotals.sort((a, b) => b.minutes - a.minutes)[0];
           const weekdayTotals = [0, 0, 0, 0, 0, 0, 0];
           Object.entries(STATE.dayLogs).forEach(([dateStr, log]) => {
-            if (dateStr >= cutoffDate && dateStr <= dateKey(today)) {
+            if (dateStr >= analysisStartDate && dateStr <= analysisEndDate) {
               const date = new Date(`${dateStr}T12:00:00`);
               const mondayFirstIndex = (date.getDay() + 6) % 7;
               weekdayTotals[mondayFirstIndex] += Object.values(log.hours || {})
@@ -1800,6 +1808,12 @@
       const diff = (dayOfWeek === 0 ? -6 : 1 - dayOfWeek);
       startDate.setDate(startDate.getDate() + diff);
       return startDate;
+    }
+    function getISOWeekNumber(referenceDate) {
+      const date = new Date(Date.UTC(referenceDate.getFullYear(), referenceDate.getMonth(), referenceDate.getDate()));
+      date.setUTCDate(date.getUTCDate() + 4 - (date.getUTCDay() || 7));
+      const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+      return Math.ceil((((date - yearStart) / 86400000) + 1) / 7);
     }
     function formatLocalDate(date) {
       return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
@@ -1906,7 +1920,8 @@
         const referenceDate = new Date(`${STATE.weekStartDate}T12:00:00`);
         const startObj = getMondayStartDate(referenceDate);
         STATE.weekStartDate = formatLocalDate(startObj);
-        titleEl.innerText = `${startObj.getDate()} ${months[startObj.getMonth()]} Haftası`;
+        const haftaNo = getISOWeekNumber(startObj);
+        titleEl.innerText = `${haftaNo}. Hafta (${startObj.getDate()} ${months[startObj.getMonth()]} Haftası)`;
         for (let i = 0; i < 7; i++) {
           const cur = new Date(startObj);
           cur.setDate(startObj.getDate() + i);
