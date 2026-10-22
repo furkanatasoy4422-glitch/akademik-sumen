@@ -80,7 +80,7 @@
 <body class="bg-[#f8fafc] text-slate-800 dark:bg-[#0b0f17] dark:text-slate-100 min-h-screen flex flex-col font-sans antialiased transition-colors duration-200">
 
   <!-- GİRİŞ EKRANI MODALI -->
-  <div id="landingScreen" style="position: fixed; inset: 0; z-index: 99999; background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; padding: 1rem;">
+  <div id="landingScreen" style="position: fixed; inset: 0; z-index: 99999; background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(8px); display: none; align-items: center; justify-content: center; padding: 1rem;">
     <div style="background: #ffffff; border-radius: 1.5rem; padding: 2rem; max-width: 420px; width: 100%; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); text-align: center; border: 1px solid #e2e8f0; font-family: sans-serif;">
       
       <div style="width: 56px; height: 56px; margin: 0 auto 1rem; border-radius: 1rem; background: linear-gradient(135deg, #4f46e5, #7c3aed); display: flex; align-items: center; justify-content: center; color: white;">
@@ -161,7 +161,7 @@
       <!-- KAYIT / BULUT DURUMU GÖSTERGESİ -->
       <div id="syncStatusBadge" class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-500 border border-slate-200/60 dark:border-slate-700">
         <span id="syncDot" class="w-2 h-2 rounded-full bg-emerald-500"></span>
-        <span id="syncText">Hazır</span>
+        <span id="syncText">Sync</span>
       </div>
     </div>
 
@@ -204,20 +204,6 @@
         </div>
       </div>
 
-      <!-- Hava Durumu (Open-Meteo API Entegre) -->
-      <div id="weatherWidgetBox" class="flex items-center gap-1.5 bg-slate-100/90 dark:bg-slate-800 px-2.5 py-1.5 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-100 border border-slate-200/60 dark:border-slate-700 transition-all shrink-0">
-        <i data-lucide="cloud-sun" id="weatherIconEl" class="w-3.5 h-3.5 text-amber-500 shrink-0"></i>
-        <span id="weatherTempText" class="font-bold tabular-nums shrink-0">--°C</span>
-        <select id="weatherSelect" onchange="onWeatherCityChange(this.value)" class="bg-transparent outline-none cursor-pointer font-bold text-xs text-slate-800 dark:text-slate-100 [&>option]:bg-white [&>option]:text-slate-800 dark:[&>option]:bg-slate-900 dark:[&>option]:text-slate-100 pr-1">
-          <option value="sivas">Sivas</option>
-          <option value="ankara">Ankara</option>
-          <option value="istanbul">İstanbul</option>
-          <option value="izmir">İzmir</option>
-          <option value="aveiro">Aveiro</option>
-          <option value="eskisehir">Eskişehir</option>
-        </select>
-      </div>
-
       <!-- Arşiv Butonu -->
       <button onclick="openArchiveModal()" class="flex items-center bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/50 text-amber-700 dark:text-amber-300 border border-amber-200/70 dark:border-amber-800/60 px-3 py-1.5 rounded-xl text-xs font-bold transition" title="Tamamlananlar Arşivi">
         <span>Arşiv</span>
@@ -244,9 +230,8 @@
           </button>
         </div>
       </div>
-      <button onclick="document.getElementById('backupFileInput').click()" title="JSON yedeğini yükle" class="flex items-center gap-1.5 px-2.5 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200/60 dark:border-slate-700/60 text-xs font-bold transition">
+      <button onclick="document.getElementById('backupFileInput').click()" title="JSON Yedeği Yükle" class="flex items-center gap-1.5 px-2.5 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200/60 dark:border-slate-700/60 text-xs font-bold transition">
         <i data-lucide="upload" class="w-4 h-4"></i>
-        <span>Yedek Yükle</span>
       </button>
       <input id="backupFileInput" type="file" accept=".json,application/json" class="hidden" onchange="importBackup(this)">
 
@@ -372,7 +357,6 @@
             <div class="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-100 dark:border-slate-800/80">
               <div class="flex items-center gap-2">
                 <span id="analysisSlideTitle" class="text-xs font-extrabold text-slate-900 dark:text-white">Alan Süreleri & Dağılım</span>
-                <span id="analysisSubBadge" class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400">Bulut Senkron</span>
               </div>
               <div class="bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg flex text-[10px] font-bold">
                 <button id="btnPeriodWeek" onclick="setAnalysisPeriod('week')" class="px-2.5 py-0.5 rounded-md text-slate-500 dark:text-slate-400 transition">Haftalık</button>
@@ -562,15 +546,6 @@
       '#e11d48', '#db2777', '#c026d3', '#dc2626'
     ];
 
-    const CITIES = {
-      sivas: { name: "Sivas", lat: 39.7477, lon: 37.0179 },
-      ankara: { name: "Ankara", lat: 39.9334, lon: 32.8597 },
-      istanbul: { name: "İstanbul", lat: 41.0082, lon: 28.9784 },
-      izmir: { name: "İzmir", lat: 38.4237, lon: 27.1428 },
-      aveiro: { name: "Aveiro", lat: 40.6405, lon: -8.6538 },
-      eskisehir: { name: "Eskişehir", lat: 39.7767, lon: 30.5206 }
-    };
-
     function getTodayLocalDate() {
       const d = new Date();
       return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
@@ -601,8 +576,6 @@
       analysisSlide: 0,
       analysisPeriod: 'month',
       activeDayModalDate: null,
-      selectedCity: 'sivas',
-
       googleUser: null,
 
       archivePage: 1,
@@ -680,12 +653,12 @@
     let cloudSaveTimeout = null;
 
     function saveLocal() {
-      setSyncStatus('saving', 'Kaydediliyor...');
+      setSyncStatus('saving');
       try {
         localStorage.setItem(STORE_KEY, JSON.stringify(STATE));
         setTimeout(() => setSyncStatus('synced'), 400);
       } catch (e) {
-        setSyncStatus('error', 'Yerel Kayıt Hatası');
+        setSyncStatus('error');
       }
 
       // Eğer Google ile giriş yapılmışsa, veriyi anında buluta da yedekle
@@ -764,7 +737,7 @@
     async function pullCloudData() {
       if (!supabaseClient || !STATE.googleUser) return;
       try {
-        setSyncStatus('saving', 'Buluttan Alınıyor...');
+        setSyncStatus('saving');
         const { data, error } = await supabaseClient
           .from('user_states')
           .select('state_data')
@@ -777,21 +750,21 @@
           STATE.googleUser = { id: STATE.googleUser.id, name: STATE.googleUser.name, email: STATE.googleUser.email };
           localStorage.setItem(STORE_KEY, JSON.stringify(STATE));
           renderAll();
-          setSyncStatus('synced', 'Bulut Senkronize');
+          setSyncStatus('synced');
         } else {
           // İlk defa giriyorsa elindeki hazır şablonu buluta yollar
           await syncAllToCloud();
         }
       } catch (err) {
         console.warn('Bulut çekme:', err);
-        setSyncStatus('synced', 'Hazır');
+        setSyncStatus('synced');
       }
     }
 
     // TÜM VERİYİ TEK SEFERDE BULUTA EŞİTLER
     async function syncAllToCloud() {
       if (!supabaseClient || !STATE.googleUser) return;
-      setSyncStatus('saving', 'Buluta Yazılıyor...');
+      setSyncStatus('saving');
       try {
         const payload = {
           user_id: STATE.googleUser.id,
@@ -799,10 +772,10 @@
           updated_at: new Date().toISOString()
         };
         await supabaseClient.from('user_states').upsert(payload, { onConflict: 'user_id' });
-        setSyncStatus('synced', 'Bulut Senkronize');
+        setSyncStatus('synced');
       } catch (e) {
         console.warn('Buluta yazma hatası:', e);
-        setSyncStatus('error', 'Bulut Hatası');
+        setSyncStatus('error');
       }
     }
 
@@ -814,20 +787,18 @@
       saveLocal();
     }
 
-    function setSyncStatus(status, text) {
+    function setSyncStatus(status) {
       const dot = document.getElementById('syncDot');
       const label = document.getElementById('syncText');
       if (!dot || !label) return;
       if (status === 'saving') {
         dot.className = "w-2 h-2 rounded-full bg-amber-500 animate-ping";
-        label.innerText = text || "Kaydediliyor...";
       } else if (status === 'synced') {
         dot.className = "w-2 h-2 rounded-full bg-emerald-500";
-        label.innerText = text || (STATE.googleUser ? "Bulut Senkronize" : "Kaydedildi");
       } else if (status === 'error') {
         dot.className = "w-2 h-2 rounded-full bg-rose-500";
-        label.innerText = text || "Hata";
       }
+      label.innerText = 'Sync';
     }
 
     function dismissLandingScreen() {
@@ -900,30 +871,6 @@
       const dateEl = document.getElementById('liveDateText');
       if (clockEl) clockEl.innerText = now.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
       if (dateEl) dateEl.innerText = now.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', weekday: 'short' });
-    }
-
-    async function loadWeather() {
-      const cityKey = STATE.selectedCity || 'sivas';
-      const city = CITIES[cityKey] || CITIES.sivas;
-      const sel = document.getElementById('weatherSelect');
-      if (sel) sel.value = cityKey;
-      try {
-        const url = `https://api.open-meteo.com/v1/forecast?latitude=${city.lat}&longitude=${city.lon}&current=temperature_2m,weather_code&timezone=auto`;
-        const res = await fetch(url);
-        const data = await res.json();
-        const temp = Math.round(data.current.temperature_2m);
-        const tempEl = document.getElementById('weatherTempText');
-        if (tempEl) tempEl.innerText = `${temp}°C`;
-      } catch (e) {
-        const tempEl = document.getElementById('weatherTempText');
-        if (tempEl) tempEl.innerText = '--°C';
-      }
-    }
-
-    function onWeatherCityChange(val) {
-      STATE.selectedCity = val;
-      saveLocal();
-      loadWeather();
     }
 
     function toggleTheme() {
@@ -2106,13 +2053,14 @@
       loadLocal();
       updateClock();
       setInterval(updateClock, 1000);
-      loadWeather();
       renderAll();
       await initSupabase();
 
-      // Eğer kullanıcı zaten giriş yapmışsa veya daha önce denemeyi seçtiyse giriş ekranını gizle
       if (STATE.googleUser || sessionStorage.getItem('foco_skip_login')) {
         dismissLandingScreen();
+      } else {
+        const screen = document.getElementById('landingScreen');
+        if (screen) screen.style.display = 'flex';
       }
     };
 </script>
