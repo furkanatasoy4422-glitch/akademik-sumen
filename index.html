@@ -546,11 +546,7 @@
     const STORE_KEY = "foco_v3_state";
     let supabaseClient = null;
 
-    const PRESET_COLORS = [
-      '#7c3aed', '#4f46e5', '#2563eb', '#0284c7', '#0891b2', '#0d9488',
-      '#059669', '#16a34a', '#65a30d', '#d97706', '#ea580c', '#f97316',
-      '#e11d48', '#db2777', '#c026d3', '#dc2626'
-    ];
+    const PRESET_COLORS = ['#dc2626', '#16a34a', '#7c3aed', '#d97706', '#0284c7', '#db2777', '#65a30d', '#ea580c', '#0891b2', '#4f46e5'];
 
     function getTodayLocalDate() {
       const d = new Date();
@@ -1036,8 +1032,14 @@
       box.classList.toggle('hidden');
       if (!box.classList.contains('hidden')) {
         const usedColors = STATE.areas.map(a => a.color.toLowerCase());
-        const unusedColor = PRESET_COLORS.find(c => !usedColors.includes(c.toLowerCase()));
-        newAreaColorByGroup[groupId] = unusedColor || PRESET_COLORS[Math.floor(Math.random() * PRESET_COLORS.length)];
+        const unusedColors = PRESET_COLORS.filter(c => !usedColors.includes(c.toLowerCase()));
+        let pickedColor = unusedColors[Math.floor(Math.random() * unusedColors.length)] || PRESET_COLORS[Math.floor(Math.random() * PRESET_COLORS.length)];
+        if (!unusedColors.length) {
+          const fallbackBase = PRESET_COLORS[Math.floor(Math.random() * PRESET_COLORS.length)];
+          const fallbackPool = PRESET_COLORS.filter(c => c.toLowerCase() !== fallbackBase.toLowerCase());
+          pickedColor = fallbackPool[Math.floor(Math.random() * fallbackPool.length)] || fallbackBase;
+        }
+        newAreaColorByGroup[groupId] = pickedColor;
         renderNewAreaPaletteInGroup(groupId);
         document.getElementById(`newAreaInput-${groupId}`).focus();
       }
@@ -1799,16 +1801,34 @@
       cont.innerHTML = '';
       let totalM = 0;
 
-      STATE.areas.forEach(a => {
-        const curMins = log.hours[`area-${a.id}`] || 0;
-        totalM += curMins;
-        cont.innerHTML += `
-          <div class="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-            <span class="text-xs font-bold flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full" style="background-color:${a.color}"></span>${a.name}</span>
-            <div class="flex items-center gap-1.5">
-              <input type="number" step="5" min="0" max="1440" value="${curMins}" onchange="setModalTrackMinutes('area-${a.id}', this.value)" class="w-16 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-xs font-bold text-center">
-              <span class="text-[11px] text-slate-400">dk</span>
+      const groupedAreas = STATE.focusGroups
+        .map(group => ({
+          group,
+          areas: STATE.areas.filter(a => a.groupId === group.id)
+        }))
+        .filter(item => item.areas.length > 0);
+
+      groupedAreas.forEach(({ group, areas }, groupIndex) => {
+        const groupRows = areas.map(a => {
+          const curMins = log.hours[`area-${a.id}`] || 0;
+          totalM += curMins;
+          return `
+            <div class="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+              <span class="text-xs font-bold flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full" style="background-color:${a.color}"></span>${a.name}</span>
+              <div class="flex items-center gap-1.5">
+                <input type="number" step="5" min="0" max="1440" value="${curMins}" onchange="setModalTrackMinutes('area-${a.id}', this.value)" class="w-16 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-xs font-bold text-center">
+                <span class="text-[11px] text-slate-400">dk</span>
+              </div>
             </div>
+          `;
+        }).join('');
+
+        if (!groupRows) return;
+
+        cont.innerHTML += `
+          <div class="${groupIndex > 0 ? 'border-t border-slate-200 dark:border-slate-800 pt-3 mt-3' : ''}">
+            <div class="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 mb-2">${group.title}</div>
+            <div class="flex flex-col gap-1.5">${groupRows}</div>
           </div>
         `;
       });
