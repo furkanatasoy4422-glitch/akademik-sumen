@@ -369,7 +369,7 @@
                 <button id="btnPeriodMonth" onclick="setAnalysisPeriod('month')" class="px-2.5 py-0.5 rounded-md bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white transition">Aylık</button>
               </div>
             </div>
-            <div id="analysisSlideBody" class="my-auto py-2 flex flex-col gap-2"></div>
+            <div id="analysisSlideBody" class="my-auto py-2 flex flex-col gap-2 max-h-[190px] overflow-y-auto pr-1"></div>
           </div>
 
           <div class="flex flex-col items-center justify-between py-1 pl-2.5 border-l border-slate-100 dark:border-slate-800/80 select-none">
@@ -1033,9 +1033,7 @@
       if (!box) return;
       box.classList.toggle('hidden');
       if (!box.classList.contains('hidden')) {
-        if (!newAreaColorByGroup[groupId]) {
-          newAreaColorByGroup[groupId] = PRESET_COLORS[STATE.areas.length % PRESET_COLORS.length];
-        }
+        newAreaColorByGroup[groupId] = PRESET_COLORS[Math.floor(Math.random() * PRESET_COLORS.length)];
         renderNewAreaPaletteInGroup(groupId);
         document.getElementById(`newAreaInput-${groupId}`).focus();
       }
