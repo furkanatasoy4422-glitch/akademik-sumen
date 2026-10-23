@@ -937,21 +937,25 @@
       const noteView = document.getElementById('leftCardSlideNotepad');
       const dotsEl = document.getElementById('leftCardDotsContainer');
       if (!quoteView || !noteView || !dotsEl) return;
+      const ta = document.getElementById('freeScratchpadTextarea');
+      if (ta) ta.value = STATE.freeScratchpadNote || '';
+      const titleEl = document.getElementById('freeScratchpadTitleEl');
+      if (titleEl) titleEl.innerText = STATE.freeScratchpadTitle || 'Hızlı Serbest Not';
       if (STATE.leftCardSlide === 0) {
-        quoteView.classList.remove('hidden');
-        noteView.classList.add('hidden');
-      } else {
         quoteView.classList.add('hidden');
         noteView.classList.remove('hidden');
+      } else {
+        quoteView.classList.remove('hidden');
+        noteView.classList.add('hidden');
       }
       dotsEl.innerHTML = [0, 1].map(i => `
-        <button onclick="goToLeftCardSlide(${i})" class="w-2 rounded-full transition-all ${STATE.leftCardSlide === i ? 'h-5 bg-indigo-600 dark:bg-indigo-400' : 'h-2 bg-slate-300 dark:bg-slate-700'}" title="${i===0?'Söz':'Not'}"></button>
+        <button onclick="goToLeftCardSlide(${i})" class="w-2 rounded-full transition-all ${STATE.leftCardSlide === i ? 'h-5 bg-indigo-600 dark:bg-indigo-400' : 'h-2 bg-slate-300 dark:bg-slate-700'}" title="${i===0?'Not':'Söz'}"></button>
       `).join('');
     }
 
     function updateFreeScratchpad(val) {
       STATE.freeScratchpadNote = val;
-      saveLocal();
+      saveState();
     }
     function updateFreeScratchpadTitle(val) {
       STATE.freeScratchpadTitle = (val || 'Hızlı Serbest Not').trim();
@@ -1851,6 +1855,9 @@
 
     function buildDayCellHtml(dateStr, dayLabel, isToday, tracks, isWeeklyView) {
       const log = STATE.dayLogs[dateStr] || { hours: {}, journals: [], completed: [] };
+      const previousDate = new Date(`${dateStr}T12:00:00`);
+      previousDate.setDate(previousDate.getDate() - 1);
+      const previousLog = STATE.dayLogs[formatLocalDate(previousDate)];
       const hasJournal = log.journals && log.journals.length > 0;
       const hasCompleted = log.completed && log.completed.length > 0;
 
@@ -1867,10 +1874,14 @@
         if (mins && mins > 0) {
           const streak = calculateConsecutiveStreak(tr.key, dateStr);
           const bg = getStreakColorCss(tr.color, streak, tr.isSub);
+          const continuesFromPreviousDay = previousLog && previousLog.hours && previousLog.hours[tr.key] > 0;
           stripsHtml += `
-            <div class="ribbon-strip w-full ${stripH} px-2 flex items-center justify-between font-bold text-white leading-none" style="background-color:${bg}" title="${tr.label} • ${formatMinutesLabel(mins)}">
-              <span class="truncate">${tr.isSub ? '↳ ' + tr.label : tr.label}</span>
-              <span class="text-[9px] opacity-90 ml-1">${formatMinutesLabel(mins, true)}</span>
+            <div class="flex w-full ${stripH}">
+              ${continuesFromPreviousDay ? '<span class="-ml-1.5 w-1.5 h-full shrink-0 rounded-l-sm bg-slate-400 dark:bg-slate-300 opacity-90 border-r border-black/20"></span>' : ''}
+              <div class="ribbon-strip ${continuesFromPreviousDay ? 'flex-1 min-w-0' : 'w-full'} h-full px-2 flex items-center justify-between font-bold text-white leading-none" style="background-color:${bg}" title="${tr.label} • ${formatMinutesLabel(mins)}">
+                <span class="truncate">${tr.isSub ? '↳ ' + tr.label : tr.label}</span>
+                <span class="text-[9px] opacity-90 ml-1">${formatMinutesLabel(mins, true)}</span>
+              </div>
             </div>
           `;
         } else {
