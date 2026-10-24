@@ -402,6 +402,10 @@
                 <i data-lucide="chevron-right" class="w-4 h-4"></i>
               </button>
             </div>
+            <div class="bg-slate-100 dark:bg-slate-800 p-1 rounded-xl flex items-center text-[10px] sm:text-xs font-bold border border-slate-200/60 dark:border-slate-700/60">
+              <button id="calendarTierPrimaryBtn" onclick="setCalendarTierView('primary')" class="px-2.5 py-1 rounded-lg transition">[1. Birincil Zincir]</button>
+              <button id="calendarTierSecondaryBtn" onclick="setCalendarTierView('secondary')" class="px-2.5 py-1 rounded-lg transition">[2. İkincil Zincir]</button>
+            </div>
             <div class="bg-slate-100 dark:bg-slate-800 p-1 rounded-xl flex items-center text-xs font-bold border border-slate-200/60 dark:border-slate-700/60">
               <button id="calViewMonthBtn" onclick="setCalendarView('month')" class="px-3 py-1 rounded-lg bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white transition">Aylık</button>
               <button id="calViewWeekBtn" onclick="setCalendarView('week')" class="px-3 py-1 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition">Haftalık</button>
@@ -579,6 +583,7 @@
       year: new Date().getFullYear(),
       month: new Date().getMonth(),
       calendarView: 'month',
+      calendarTierView: 'primary',
       weekStartDate: getTodayLocalDate(),
       durationDisplayMode: 'smart',
       showSubtasksInCalendar: false,
@@ -619,7 +624,7 @@
           name: 'Tez',
           color: '#7c3aed',
           chained: true,
-          excludeFromChain: false,
+          tier: 'primary',
           subtasks: [],
           notes: []
         },
@@ -629,7 +634,7 @@
           name: 'Makale 1',
           color: '#2563eb',
           chained: true,
-          excludeFromChain: false,
+          tier: 'primary',
           subtasks: [],
           notes: []
         },
@@ -639,7 +644,7 @@
           name: 'Makale 2',
           color: '#059669',
           chained: true,
-          excludeFromChain: false,
+          tier: 'primary',
           subtasks: [],
           notes: []
         },
@@ -649,7 +654,7 @@
           name: 'Kitap Okuma',
           color: '#ea580c',
           chained: true,
-          excludeFromChain: false,
+          tier: 'primary',
           subtasks: [],
           notes: []
         },
@@ -659,7 +664,7 @@
           name: 'Koşu',
           color: '#e11d48',
           chained: true,
-          excludeFromChain: false,
+          tier: 'primary',
           subtasks: [],
           notes: []
         }
@@ -713,9 +718,19 @@
           STATE = Object.assign(STATE, parsed);
         } catch (e) {}
       }
+      normalizeAreaTiers();
+    }
+
+    function normalizeAreaTiers() {
       STATE.areas.forEach(area => {
-        if (typeof area.excludeFromChain !== 'boolean') area.excludeFromChain = false;
+        if (area.tier !== 'primary' && area.tier !== 'secondary') {
+          area.tier = area.excludeFromChain === true ? 'secondary' : 'primary';
+        }
+        delete area.excludeFromChain;
       });
+      if (STATE.calendarTierView !== 'primary' && STATE.calendarTierView !== 'secondary') {
+        STATE.calendarTierView = 'primary';
+      }
     }
 
     async function initSupabase() {
@@ -781,9 +796,7 @@
         if (data && data.state_data) {
           // Buluttaki tam veriyi alıp yerel belleğe yazar
           STATE = Object.assign(STATE, data.state_data);
-          STATE.areas.forEach(area => {
-            if (typeof area.excludeFromChain !== 'boolean') area.excludeFromChain = false;
-          });
+          normalizeAreaTiers();
           STATE.googleUser = { id: STATE.googleUser.id, name: STATE.googleUser.name, email: STATE.googleUser.email };
           localStorage.setItem(STORE_KEY, JSON.stringify(STATE));
           renderAll();
@@ -1114,7 +1127,7 @@
       const color = newAreaColorByGroup[groupId] || PRESET_COLORS[STATE.areas.length % PRESET_COLORS.length];
       const chainChk = document.getElementById(`newAreaChainChk-${groupId}`);
       const isChained = chainChk ? chainChk.checked : true;
-      const excludeFromChainChk = document.getElementById(`newAreaExcludeFromChain-${groupId}`);
+      const tierSelect = document.getElementById(`newAreaTier-${groupId}`);
       const newId = 'area_' + Date.now().toString(36);
       STATE.areas.push({
         id: newId,
@@ -1122,7 +1135,7 @@
         name,
         color,
         chained: isChained,
-        excludeFromChain: excludeFromChainChk ? excludeFromChainChk.checked : false,
+        tier: tierSelect && tierSelect.value === 'secondary' ? 'secondary' : 'primary',
         subtasks: [],
         notes: []
       });
@@ -1147,8 +1160,8 @@
         const area = STATE.areas.find(a => String(a.id) === String(areaId));
         if (area) {
           if (val) area.name = val;
-          const excludeFromChainChk = document.getElementById(`editAreaExcludeFromChain-${areaId}`);
-          if (excludeFromChainChk) area.excludeFromChain = excludeFromChainChk.checked;
+          const tierSelect = document.getElementById(`editAreaTier-${areaId}`);
+          if (tierSelect) area.tier = tierSelect.value === 'secondary' ? 'secondary' : 'primary';
         }
       }
       STATE.editingAreaId = null;
@@ -1305,10 +1318,10 @@
                 <input id="editAreaInp-${area.id}" type="text" value="${area.name}"
                 onkeydown="if(event.key==='Enter') saveEditAreaName('${area.id}')"
                 class="flex-1 bg-slate-100 dark:bg-slate-800 border border-indigo-500 rounded px-1.5 py-0.5 text-xs font-bold outline-none min-w-0">
-                <label class="flex items-center gap-1 text-[9px] leading-tight text-slate-500 dark:text-slate-400">
-                  <input id="editAreaExcludeFromChain-${area.id}" type="checkbox" ${area.excludeFromChain === true ? 'checked' : ''} class="w-3 h-3 accent-indigo-600">
-                  <span>Takvim şeridinde gösterme (Yalnızca gün detayında ve analizde takip et)</span>
-                </label>
+                <select id="editAreaTier-${area.id}" class="max-w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-1 py-0.5 text-[9px] text-slate-600 dark:text-slate-300">
+                  <option value="primary" ${area.tier !== 'secondary' ? 'selected' : ''}>Birincil Zincir (Ana Odak)</option>
+                  <option value="secondary" ${area.tier === 'secondary' ? 'selected' : ''}>İkincil Zincir (Destek / Mikro)</option>
+                </select>
                 <button onclick="saveEditAreaName('${area.id}')" class="px-2 py-0.5 rounded bg-indigo-600 text-white text-[9px] font-bold">Kaydet</button>
               </div>
             ` : `
@@ -1379,10 +1392,10 @@
           <div class="${group.collapsed ? 'hidden' : 'flex'} p-3 flex-col gap-2">
             <div id="newAreaBox-${group.id}" class="hidden p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 mb-1">
               <input id="newAreaInput-${group.id}" type="text" placeholder="Yeni odak alanı..." onkeydown="if(event.key==='Enter') createNewAreaInGroup('${group.id}')" class="w-full bg-white dark:bg-slate-800 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold outline-none mb-2">
-              <label class="flex items-center gap-1.5 mb-2 text-[10px] leading-tight text-slate-500 dark:text-slate-400">
-                <input id="newAreaExcludeFromChain-${group.id}" type="checkbox" class="w-3 h-3 accent-indigo-600">
-                <span>Takvim şeridinde gösterme (Yalnızca gün detayında ve analizde takip et)</span>
-              </label>
+              <select id="newAreaTier-${group.id}" class="w-full mb-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-[10px] text-slate-600 dark:text-slate-300">
+                <option value="primary">Birincil Zincir (Ana Odak)</option>
+                <option value="secondary">İkincil Zincir (Destek / Mikro)</option>
+              </select>
               <div class="text-[10px] font-bold text-slate-400 uppercase mb-1.5">Renk:</div>
               <div id="newAreaPalette-${group.id}" class="grid grid-cols-8 gap-1.5 mb-2.5"></div>
               <div class="flex justify-end gap-1.5">
@@ -1875,10 +1888,16 @@
       renderCalendar();
     }
 
+    function setCalendarTierView(tier) {
+      STATE.calendarTierView = tier === 'secondary' ? 'secondary' : 'primary';
+      saveState();
+      renderCalendar();
+    }
+
     function getCalendarTracks() {
       const tracks = [];
       STATE.areas.forEach(a => {
-        if (a.excludeFromChain === true) return;
+        if (a.tier !== STATE.calendarTierView) return;
         if (a.chained !== false) tracks.push({ key: `area-${a.id}`, label: a.name, color: a.color, isSub: false });
         if (STATE.showSubtasksInCalendar) {
           (a.subtasks || []).filter(s => s.chained && !s.completedShortTerm).forEach(sub => {
@@ -1945,11 +1964,17 @@
       if (!grid || !titleEl) return;
       grid.innerHTML = '';
       if (legendEl) legendEl.innerHTML = '';
+      const activeTierButtonClass = 'px-2.5 py-1 rounded-lg bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white transition';
+      const inactiveTierButtonClass = 'px-2.5 py-1 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition';
+      const primaryTierButton = document.getElementById('calendarTierPrimaryBtn');
+      const secondaryTierButton = document.getElementById('calendarTierSecondaryBtn');
+      if (primaryTierButton) primaryTierButton.className = STATE.calendarTierView === 'primary' ? activeTierButtonClass : inactiveTierButtonClass;
+      if (secondaryTierButton) secondaryTierButton.className = STATE.calendarTierView === 'secondary' ? activeTierButtonClass : inactiveTierButtonClass;
 
       const months = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
 
       if (legendEl) {
-        STATE.areas.filter(a => a.chained !== false && a.excludeFromChain !== true).forEach(a => {
+        STATE.areas.filter(a => a.chained !== false && a.tier === STATE.calendarTierView).forEach(a => {
           legendEl.innerHTML += `
             <div class="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700">
               <button onclick="moveAreaOrderByOffset('${a.id}', -1)" class="text-slate-400 hover:text-slate-700">‹</button>
@@ -2018,21 +2043,22 @@
       cont.innerHTML = '';
       let totalM = 0;
 
-      // Odak pencerelerine (gruplara) göre grupla
-      (STATE.focusGroups || []).forEach((group, gIdx) => {
-        const groupAreas = (STATE.areas || []).filter(a => a.groupId === group.id);
-        if (!groupAreas.length) return; // Boş grubu gösterme
+      [
+        { tier: 'primary', title: 'Birincil Odak' },
+        { tier: 'secondary', title: 'İkincil Odak' }
+      ].forEach((tierGroup, groupIndex) => {
+        const tierAreas = (STATE.areas || []).filter(area =>
+          (area.tier === 'secondary' ? 'secondary' : 'primary') === tierGroup.tier
+        );
+        if (!tierAreas.length) return;
 
-        // Gruplar arasına başlık ve çizgi koy
-        const groupHeaderHtml = `
-          <div class="${gIdx > 0 ? 'border-t border-slate-200 dark:border-slate-800 pt-3 mt-3' : 'pt-1'} mb-2">
-            <span class="text-[11px] font-extrabold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">${group.title}</span>
+        cont.innerHTML += `
+          <div class="${groupIndex > 0 ? 'border-t border-slate-200 dark:border-slate-800 pt-3 mt-3' : 'pt-1'} mb-2">
+            <span class="text-[11px] font-extrabold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">--- ${tierGroup.title} ---</span>
           </div>
         `;
-        cont.innerHTML += groupHeaderHtml;
 
-        // Gruba ait alanları bas
-        groupAreas.forEach(a => {
+        tierAreas.forEach(a => {
           const curMins = log.hours[`area-${a.id}`] || 0;
           totalM += curMins;
           cont.innerHTML += `
@@ -2040,7 +2066,6 @@
               <span class="text-xs font-bold flex items-center gap-1.5 text-slate-800 dark:text-slate-100">
                 <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color:${a.color}"></span>
                 ${a.name}
-                ${a.excludeFromChain === true ? '<span class="px-1 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-[9px] font-semibold text-slate-500 dark:text-slate-400">Arka Plan</span>' : ''}
               </span>
               <div class="flex items-center gap-1.5">
                 <input type="number" step="5" min="0" max="1440" value="${curMins}" onchange="setModalTrackMinutes('area-${a.id}', this.value)" class="w-16 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-xs font-bold text-center text-slate-800 dark:text-slate-100 outline-none">
@@ -2301,9 +2326,7 @@
         }
 
         Object.assign(STATE, importedState);
-        STATE.areas.forEach(area => {
-          if (typeof area.excludeFromChain !== 'boolean') area.excludeFromChain = false;
-        });
+        normalizeAreaTiers();
         renderAll();
         saveState();
         alert('Yedek başarıyla yüklendi.');
