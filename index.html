@@ -619,6 +619,7 @@
           name: 'Tez',
           color: '#7c3aed',
           chained: true,
+          excludeFromChain: false,
           subtasks: [],
           notes: []
         },
@@ -628,6 +629,7 @@
           name: 'Makale 1',
           color: '#2563eb',
           chained: true,
+          excludeFromChain: false,
           subtasks: [],
           notes: []
         },
@@ -637,6 +639,7 @@
           name: 'Makale 2',
           color: '#059669',
           chained: true,
+          excludeFromChain: false,
           subtasks: [],
           notes: []
         },
@@ -646,6 +649,7 @@
           name: 'Kitap Okuma',
           color: '#ea580c',
           chained: true,
+          excludeFromChain: false,
           subtasks: [],
           notes: []
         },
@@ -655,6 +659,7 @@
           name: 'Koşu',
           color: '#e11d48',
           chained: true,
+          excludeFromChain: false,
           subtasks: [],
           notes: []
         }
@@ -708,6 +713,9 @@
           STATE = Object.assign(STATE, parsed);
         } catch (e) {}
       }
+      STATE.areas.forEach(area => {
+        if (typeof area.excludeFromChain !== 'boolean') area.excludeFromChain = false;
+      });
     }
 
     async function initSupabase() {
@@ -773,6 +781,9 @@
         if (data && data.state_data) {
           // Buluttaki tam veriyi alıp yerel belleğe yazar
           STATE = Object.assign(STATE, data.state_data);
+          STATE.areas.forEach(area => {
+            if (typeof area.excludeFromChain !== 'boolean') area.excludeFromChain = false;
+          });
           STATE.googleUser = { id: STATE.googleUser.id, name: STATE.googleUser.name, email: STATE.googleUser.email };
           localStorage.setItem(STORE_KEY, JSON.stringify(STATE));
           renderAll();
@@ -1103,6 +1114,7 @@
       const color = newAreaColorByGroup[groupId] || PRESET_COLORS[STATE.areas.length % PRESET_COLORS.length];
       const chainChk = document.getElementById(`newAreaChainChk-${groupId}`);
       const isChained = chainChk ? chainChk.checked : true;
+      const excludeFromChainChk = document.getElementById(`newAreaExcludeFromChain-${groupId}`);
       const newId = 'area_' + Date.now().toString(36);
       STATE.areas.push({
         id: newId,
@@ -1110,6 +1122,7 @@
         name,
         color,
         chained: isChained,
+        excludeFromChain: excludeFromChainChk ? excludeFromChainChk.checked : false,
         subtasks: [],
         notes: []
       });
@@ -1132,7 +1145,11 @@
       if (inp) {
         const val = inp.value.trim();
         const area = STATE.areas.find(a => String(a.id) === String(areaId));
-        if (area && val) area.name = val;
+        if (area) {
+          if (val) area.name = val;
+          const excludeFromChainChk = document.getElementById(`editAreaExcludeFromChain-${areaId}`);
+          if (excludeFromChainChk) area.excludeFromChain = excludeFromChainChk.checked;
+        }
       }
       STATE.editingAreaId = null;
       saveLocal();
@@ -1284,10 +1301,16 @@
             }
 
             let areaTitleDisplayHtml = isAreaEditing ? `
-              <input id="editAreaInp-${area.id}" type="text" value="${area.name}"
+              <div class="flex flex-col items-start gap-1 flex-1 min-w-0">
+                <input id="editAreaInp-${area.id}" type="text" value="${area.name}"
                 onkeydown="if(event.key==='Enter') saveEditAreaName('${area.id}')"
-                onblur="saveEditAreaName('${area.id}')"
                 class="flex-1 bg-slate-100 dark:bg-slate-800 border border-indigo-500 rounded px-1.5 py-0.5 text-xs font-bold outline-none min-w-0">
+                <label class="flex items-center gap-1 text-[9px] leading-tight text-slate-500 dark:text-slate-400">
+                  <input id="editAreaExcludeFromChain-${area.id}" type="checkbox" ${area.excludeFromChain === true ? 'checked' : ''} class="w-3 h-3 accent-indigo-600">
+                  <span>Takvim şeridinde gösterme (Yalnızca gün detayında ve analizde takip et)</span>
+                </label>
+                <button onclick="saveEditAreaName('${area.id}')" class="px-2 py-0.5 rounded bg-indigo-600 text-white text-[9px] font-bold">Kaydet</button>
+              </div>
             ` : `
               <div onclick="toggleExpandArea('${area.id}')" ondblclick="startEditAreaName('${area.id}')" class="flex items-center gap-1.5 cursor-pointer flex-1 min-w-0">
                 <span class="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">${area.name}</span>
@@ -1356,6 +1379,10 @@
           <div class="${group.collapsed ? 'hidden' : 'flex'} p-3 flex-col gap-2">
             <div id="newAreaBox-${group.id}" class="hidden p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 mb-1">
               <input id="newAreaInput-${group.id}" type="text" placeholder="Yeni odak alanı..." onkeydown="if(event.key==='Enter') createNewAreaInGroup('${group.id}')" class="w-full bg-white dark:bg-slate-800 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold outline-none mb-2">
+              <label class="flex items-center gap-1.5 mb-2 text-[10px] leading-tight text-slate-500 dark:text-slate-400">
+                <input id="newAreaExcludeFromChain-${group.id}" type="checkbox" class="w-3 h-3 accent-indigo-600">
+                <span>Takvim şeridinde gösterme (Yalnızca gün detayında ve analizde takip et)</span>
+              </label>
               <div class="text-[10px] font-bold text-slate-400 uppercase mb-1.5">Renk:</div>
               <div id="newAreaPalette-${group.id}" class="grid grid-cols-8 gap-1.5 mb-2.5"></div>
               <div class="flex justify-end gap-1.5">
@@ -1851,6 +1878,7 @@
     function getCalendarTracks() {
       const tracks = [];
       STATE.areas.forEach(a => {
+        if (a.excludeFromChain === true) return;
         if (a.chained !== false) tracks.push({ key: `area-${a.id}`, label: a.name, color: a.color, isSub: false });
         if (STATE.showSubtasksInCalendar) {
           (a.subtasks || []).filter(s => s.chained && !s.completedShortTerm).forEach(sub => {
@@ -1921,7 +1949,7 @@
       const months = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
 
       if (legendEl) {
-        STATE.areas.filter(a => a.chained !== false).forEach(a => {
+        STATE.areas.filter(a => a.chained !== false && a.excludeFromChain !== true).forEach(a => {
           legendEl.innerHTML += `
             <div class="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700">
               <button onclick="moveAreaOrderByOffset('${a.id}', -1)" class="text-slate-400 hover:text-slate-700">‹</button>
@@ -2012,6 +2040,7 @@
               <span class="text-xs font-bold flex items-center gap-1.5 text-slate-800 dark:text-slate-100">
                 <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color:${a.color}"></span>
                 ${a.name}
+                ${a.excludeFromChain === true ? '<span class="px-1 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-[9px] font-semibold text-slate-500 dark:text-slate-400">Arka Plan</span>' : ''}
               </span>
               <div class="flex items-center gap-1.5">
                 <input type="number" step="5" min="0" max="1440" value="${curMins}" onchange="setModalTrackMinutes('area-${a.id}', this.value)" class="w-16 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-xs font-bold text-center text-slate-800 dark:text-slate-100 outline-none">
@@ -2272,6 +2301,9 @@
         }
 
         Object.assign(STATE, importedState);
+        STATE.areas.forEach(area => {
+          if (typeof area.excludeFromChain !== 'boolean') area.excludeFromChain = false;
+        });
         renderAll();
         saveState();
         alert('Yedek başarıyla yüklendi.');
