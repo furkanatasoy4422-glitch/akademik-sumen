@@ -1314,15 +1314,15 @@
             }
 
             let areaTitleDisplayHtml = isAreaEditing ? `
-              <div class="flex flex-col items-start gap-1 flex-1 min-w-0">
+              <div class="flex flex-wrap items-center gap-1 flex-1 min-w-0">
                 <input id="editAreaInp-${area.id}" type="text" value="${area.name}"
                 onkeydown="if(event.key==='Enter') saveEditAreaName('${area.id}')"
-                class="flex-1 bg-slate-100 dark:bg-slate-800 border border-indigo-500 rounded px-1.5 py-0.5 text-xs font-bold outline-none min-w-0">
-                <select id="editAreaTier-${area.id}" class="max-w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-1 py-0.5 text-[9px] text-slate-600 dark:text-slate-300">
+                class="flex-1 basis-24 bg-slate-100 dark:bg-slate-800 border border-indigo-500 rounded px-1.5 py-0.5 text-xs font-bold outline-none min-w-0">
+                <select id="editAreaTier-${area.id}" class="flex-1 basis-36 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-1 py-0.5 text-[9px] text-slate-600 dark:text-slate-300">
                   <option value="primary" ${area.tier !== 'secondary' ? 'selected' : ''}>Birincil Zincir (Ana Odak)</option>
                   <option value="secondary" ${area.tier === 'secondary' ? 'selected' : ''}>İkincil Zincir (Destek / Mikro)</option>
                 </select>
-                <button onclick="saveEditAreaName('${area.id}')" class="px-2 py-0.5 rounded bg-indigo-600 text-white text-[9px] font-bold">Kaydet</button>
+                <button onclick="saveEditAreaName('${area.id}')" class="shrink-0 px-2 py-1 rounded bg-indigo-600 text-white text-[9px] font-bold">Kaydet</button>
               </div>
             ` : `
               <div onclick="toggleExpandArea('${area.id}')" ondblclick="startEditAreaName('${area.id}')" class="flex items-center gap-1.5 cursor-pointer flex-1 min-w-0">
