@@ -403,8 +403,8 @@
               </button>
             </div>
             <div class="bg-slate-100 dark:bg-slate-800 p-1 rounded-xl flex items-center text-[10px] sm:text-xs font-bold border border-slate-200/60 dark:border-slate-700/60">
-              <button id="calendarTierPrimaryBtn" onclick="setCalendarTierView('primary')" class="px-2.5 py-1 rounded-lg transition">[1. Birincil Zincir]</button>
-              <button id="calendarTierSecondaryBtn" onclick="setCalendarTierView('secondary')" class="px-2.5 py-1 rounded-lg transition">[2. İkincil Zincir]</button>
+              <button id="calendarTierPrimaryBtn" onclick="setCalendarTierView('primary')" ondblclick="renameCalendarTier('primary')" title="Çift tıklayarak adı düzenle" class="px-2.5 py-1 rounded-lg transition">[1. Birincil Zincir]</button>
+              <button id="calendarTierSecondaryBtn" onclick="setCalendarTierView('secondary')" ondblclick="renameCalendarTier('secondary')" title="Çift tıklayarak adı düzenle" class="px-2.5 py-1 rounded-lg transition">[2. İkincil Zincir]</button>
             </div>
             <div class="bg-slate-100 dark:bg-slate-800 p-1 rounded-xl flex items-center text-xs font-bold border border-slate-200/60 dark:border-slate-700/60">
               <button id="calViewMonthBtn" onclick="setCalendarView('month')" class="px-3 py-1 rounded-lg bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white transition">Aylık</button>
@@ -584,6 +584,8 @@
       month: new Date().getMonth(),
       calendarView: 'month',
       calendarTierView: 'primary',
+      primaryTierName: 'Birincil Zincir',
+      secondaryTierName: 'İkincil Zincir',
       weekStartDate: getTodayLocalDate(),
       durationDisplayMode: 'smart',
       showSubtasksInCalendar: false,
@@ -731,6 +733,18 @@
       if (STATE.calendarTierView !== 'primary' && STATE.calendarTierView !== 'secondary') {
         STATE.calendarTierView = 'primary';
       }
+      STATE.primaryTierName = STATE.primaryTierName || 'Birincil Zincir';
+      STATE.secondaryTierName = STATE.secondaryTierName || 'İkincil Zincir';
+    }
+
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, char => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+      })[char]);
     }
 
     async function initSupabase() {
@@ -1319,8 +1333,8 @@
                 onkeydown="if(event.key==='Enter') saveEditAreaName('${area.id}')"
                 class="flex-1 basis-24 bg-slate-100 dark:bg-slate-800 border border-indigo-500 rounded px-1.5 py-0.5 text-xs font-bold outline-none min-w-0">
                 <select id="editAreaTier-${area.id}" class="flex-1 basis-36 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-1 py-0.5 text-[9px] text-slate-600 dark:text-slate-300">
-                  <option value="primary" ${area.tier !== 'secondary' ? 'selected' : ''}>Birincil Zincir (Ana Odak)</option>
-                  <option value="secondary" ${area.tier === 'secondary' ? 'selected' : ''}>İkincil Zincir (Destek / Mikro)</option>
+                  <option value="primary" ${area.tier !== 'secondary' ? 'selected' : ''}>${escapeHtml(STATE.primaryTierName)}</option>
+                  <option value="secondary" ${area.tier === 'secondary' ? 'selected' : ''}>${escapeHtml(STATE.secondaryTierName)}</option>
                 </select>
                 <button onclick="saveEditAreaName('${area.id}')" class="shrink-0 px-2 py-1 rounded bg-indigo-600 text-white text-[9px] font-bold">Kaydet</button>
               </div>
@@ -1393,8 +1407,8 @@
             <div id="newAreaBox-${group.id}" class="hidden p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 mb-1">
               <input id="newAreaInput-${group.id}" type="text" placeholder="Yeni odak alanı..." onkeydown="if(event.key==='Enter') createNewAreaInGroup('${group.id}')" class="w-full bg-white dark:bg-slate-800 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold outline-none mb-2">
               <select id="newAreaTier-${group.id}" class="w-full mb-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-[10px] text-slate-600 dark:text-slate-300">
-                <option value="primary">Birincil Zincir (Ana Odak)</option>
-                <option value="secondary">İkincil Zincir (Destek / Mikro)</option>
+                <option value="primary">${escapeHtml(STATE.primaryTierName)}</option>
+                <option value="secondary">${escapeHtml(STATE.secondaryTierName)}</option>
               </select>
               <div class="text-[10px] font-bold text-slate-400 uppercase mb-1.5">Renk:</div>
               <div id="newAreaPalette-${group.id}" class="grid grid-cols-8 gap-1.5 mb-2.5"></div>
@@ -1894,6 +1908,17 @@
       renderCalendar();
     }
 
+    function renameCalendarTier(tier) {
+      const isSecondary = tier === 'secondary';
+      const stateKey = isSecondary ? 'secondaryTierName' : 'primaryTierName';
+      const defaultName = isSecondary ? 'İkincil Zincir' : 'Birincil Zincir';
+      const newName = prompt('Yeni sekme adını girin:', STATE[stateKey] || defaultName);
+      if (!newName || !newName.trim()) return;
+      STATE[stateKey] = newName.trim();
+      saveState();
+      renderAll();
+    }
+
     function getCalendarTracks() {
       const tracks = [];
       STATE.areas.forEach(a => {
@@ -1968,8 +1993,14 @@
       const inactiveTierButtonClass = 'px-2.5 py-1 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition';
       const primaryTierButton = document.getElementById('calendarTierPrimaryBtn');
       const secondaryTierButton = document.getElementById('calendarTierSecondaryBtn');
-      if (primaryTierButton) primaryTierButton.className = STATE.calendarTierView === 'primary' ? activeTierButtonClass : inactiveTierButtonClass;
-      if (secondaryTierButton) secondaryTierButton.className = STATE.calendarTierView === 'secondary' ? activeTierButtonClass : inactiveTierButtonClass;
+      if (primaryTierButton) {
+        primaryTierButton.className = STATE.calendarTierView === 'primary' ? activeTierButtonClass : inactiveTierButtonClass;
+        primaryTierButton.textContent = `[1. ${STATE.primaryTierName}]`;
+      }
+      if (secondaryTierButton) {
+        secondaryTierButton.className = STATE.calendarTierView === 'secondary' ? activeTierButtonClass : inactiveTierButtonClass;
+        secondaryTierButton.textContent = `[2. ${STATE.secondaryTierName}]`;
+      }
 
       const months = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
 
@@ -2044,8 +2075,8 @@
       let totalM = 0;
 
       [
-        { tier: 'primary', title: 'Birincil Odak' },
-        { tier: 'secondary', title: 'İkincil Odak' }
+        { tier: 'primary', title: STATE.primaryTierName },
+        { tier: 'secondary', title: STATE.secondaryTierName }
       ].forEach((tierGroup, groupIndex) => {
         const tierAreas = (STATE.areas || []).filter(area =>
           (area.tier === 'secondary' ? 'secondary' : 'primary') === tierGroup.tier
@@ -2054,7 +2085,7 @@
 
         cont.innerHTML += `
           <div class="${groupIndex > 0 ? 'border-t border-slate-200 dark:border-slate-800 pt-3 mt-3' : 'pt-1'} mb-2">
-            <span class="text-[11px] font-extrabold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">--- ${tierGroup.title} ---</span>
+            <span class="text-[11px] font-extrabold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">--- ${escapeHtml(tierGroup.title)} ---</span>
           </div>
         `;
 
