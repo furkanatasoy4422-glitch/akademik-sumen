@@ -242,6 +242,11 @@
         <div id="importMenu" class="hidden absolute right-0 mt-2 w-72 bg-white dark:bg-[#151e31] border border-slate-200 dark:border-slate-700 rounded-2xl shadow-xl p-3 z-50">
           <p class="text-xs leading-relaxed text-slate-600 dark:text-slate-300 mb-2">FocoDesk verilerinizi .JSON formatında yükleyerek tüm odak ve zincirlerinizi geri getirebilirsiniz</p>
           <button onclick="selectBackupFile()" class="w-full px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition">JSON Dosyası Seç</button>
+          <div class="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700">
+            <p class="text-xs font-bold text-slate-700 dark:text-slate-200 mb-1">Otomatik günlük yedekler</p>
+            <p class="text-[11px] text-slate-400 mb-2">Bu tarayıcı her gün ilk açılışta bir kopya saklar (son 7 gün).</p>
+            <div id="autoBackupList" class="flex flex-col gap-1 max-h-48 overflow-y-auto"></div>
+          </div>
         </div>
       </div>
       <input id="backupFileInput" type="file" accept=".json,application/json" class="hidden" onchange="importBackup(this)">
@@ -570,7 +575,7 @@
       return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
     }
 
-    const TODAY_STR = getTodayLocalDate();
+    let TODAY_STR = getTodayLocalDate();
     let activeColorPickerAreaId = null;
     let newAreaColorByGroup = {};
     let lastUndoSnapshot = null;
@@ -673,7 +678,8 @@
       ],
 
       completedArchive: [],
-      dayLogs: {}
+      dayLogs: {},
+      deletedIds: {}
     };
 
     const QUOTES = [
@@ -694,7 +700,9 @@
       setSyncStatus('saving');
       try {
         localStorage.setItem(STORE_KEY, JSON.stringify(STATE));
-        setTimeout(() => setSyncStatus('synced'), 400);
+        setDirty(true);
+        maybeDailyBackup();
+        if (!(STATE.googleUser && supabaseClient)) setTimeout(() => setSyncStatus('synced'), 400);
       } catch (e) {
         setSyncStatus('error');
       }
@@ -712,8 +720,10 @@
       saveLocal();
     }
 
+    let hadLocalData = false;
     function loadLocal() {
       const raw = localStorage.getItem(STORE_KEY);
+      hadLocalData = !!raw;
       if (raw) {
         try {
           const parsed = JSON.parse(raw);
@@ -790,57 +800,297 @@
     }
 
     async function logoutApp() {
+      if (supabaseClient && isDirty()) await syncAllToCloud();
       if (supabaseClient) await supabaseClient.auth.signOut();
       localStorage.removeItem(STORE_KEY);
+      localStorage.removeItem(CLOUD_TS_KEY);
+      localStorage.removeItem(DIRTY_KEY);
       sessionStorage.removeItem('foco_skip_login');
       window.location.reload();
     }
 
-    // TÜM VERİYİ BULUTTAN ÇEKER (Renkler, Odaklar, Takvim Dahil)
+    // ==========================================
+    // 2b. VERİ GÜVENLİĞİ: ÇAKIŞMA KORUMASI, BİRLEŞTİRME, YEDEK, GERİ AL
+    // ==========================================
+    const CLOUD_TS_KEY = 'foco_cloud_updated_at';   // en son görülen bulut sürümünün zamanı
+    const DIRTY_KEY = 'foco_unsynced';               // buluta henüz gitmemiş yerel değişiklik var mı
+    const BACKUP_KEY = 'foco_daily_backups';
+    const MAX_DAILY_BACKUPS = 7;
+    const TRANSIENT_KEYS = ['timerHandle', 'timerRunning', 'timerSecs', 'googleUser', 'activeDayModalDate', 'editingGroupId', 'editingAreaId'];
+    let syncInFlight = null;
+    let syncQueued = false;
+
+    function getKnownCloudTs() { return localStorage.getItem(CLOUD_TS_KEY) || ''; }
+    function setKnownCloudTs(ts) { if (ts) localStorage.setItem(CLOUD_TS_KEY, ts); }
+    function isDirty() { return localStorage.getItem(DIRTY_KEY) === '1'; }
+    function setDirty(v) { if (v) localStorage.setItem(DIRTY_KEY, '1'); else localStorage.removeItem(DIRTY_KEY); }
+    function sameTs(a, b) {
+      if (!a || !b) return false;
+      const ta = Date.parse(a), tb = Date.parse(b);
+      return isNaN(ta) || isNaN(tb) ? a === b : ta === tb;
+    }
+
+    // Buluta/yedeğe giden kopya: zamanlayıcı gibi anlık alanlar hariç
+    function serializableState(source) {
+      const copy = {};
+      Object.keys(source).forEach(k => { if (!TRANSIENT_KEYS.includes(k)) copy[k] = source[k]; });
+      return JSON.parse(JSON.stringify(copy));
+    }
+
+    // Dışarıdan gelen durumu (bulut, yedek, geri al) uygula; anlık alanları koru
+    function applyIncomingState(incoming) {
+      const keep = {
+        googleUser: STATE.googleUser,
+        timerHandle: STATE.timerHandle,
+        timerRunning: STATE.timerRunning,
+        timerSecs: STATE.timerSecs,
+        activeDayModalDate: STATE.activeDayModalDate
+      };
+      STATE = Object.assign(STATE, incoming, keep);
+      if (!STATE.deletedIds || typeof STATE.deletedIds !== 'object') STATE.deletedIds = {};
+      normalizeAreaTiers();
+      localStorage.setItem(STORE_KEY, JSON.stringify(STATE));
+    }
+
+    function markDeleted(id) {
+      if (!STATE.deletedIds || typeof STATE.deletedIds !== 'object') STATE.deletedIds = {};
+      STATE.deletedIds[String(id)] = new Date().toISOString();
+    }
+
+    function unionList(a, b, keyFn) {
+      const out = [], seen = new Set();
+      [...(a || []), ...(b || [])].forEach(item => {
+        const k = keyFn(item);
+        if (seen.has(k)) return;
+        seen.add(k);
+        out.push(item);
+      });
+      return out;
+    }
+
+    function mergeById(localArr, cloudArr, tomb, mergeItem) {
+      const out = [], seen = new Set();
+      const cloudMap = new Map((cloudArr || []).map(c => [String(c.id), c]));
+      (localArr || []).forEach(item => {
+        const id = String(item.id);
+        if (tomb[id] || seen.has(id)) return;
+        const other = cloudMap.get(id);
+        out.push(other && mergeItem ? mergeItem(item, other) : item);
+        seen.add(id);
+      });
+      (cloudArr || []).forEach(item => {
+        const id = String(item.id);
+        if (tomb[id] || seen.has(id)) return;
+        out.push(item);
+        seen.add(id);
+      });
+      return out;
+    }
+
+    // İki cihazın verisini kayıpsız birleştirir: hiçbir dakika, not veya alan kaybolmaz.
+    // Ayarlar (tema, görünüm vb.) bu cihazdaki haliyle kalır.
+    function mergeStates(local, cloud) {
+      local = JSON.parse(JSON.stringify(local || {}));
+      cloud = JSON.parse(JSON.stringify(cloud || {}));
+      const merged = Object.assign({}, cloud, local);
+      const tomb = Object.assign({}, cloud.deletedIds || {}, local.deletedIds || {});
+      merged.deletedIds = tomb;
+      merged.tags = unionList(local.tags, cloud.tags, t => String(t));
+      merged.focusGroups = mergeById(local.focusGroups, cloud.focusGroups, tomb);
+      merged.areas = mergeById(local.areas, cloud.areas, tomb, (l, c) => Object.assign({}, l, {
+        subtasks: mergeById(l.subtasks, c.subtasks, tomb),
+        notes: mergeById(l.notes, c.notes, tomb)
+      }));
+      const groupIds = new Set(merged.focusGroups.map(g => g.id));
+      if (merged.focusGroups.length) {
+        merged.areas.forEach(a => { if (!groupIds.has(a.groupId)) a.groupId = merged.focusGroups[0].id; });
+      }
+      merged.completedArchive = unionList(local.completedArchive, cloud.completedArchive,
+        x => (x && x.id != null) ? 'id:' + x.id : JSON.stringify(x))
+        .sort((x, y) => (Number(y && y.id) || 0) - (Number(x && x.id) || 0));
+
+      merged.dayLogs = {};
+      const ld = local.dayLogs || {}, cd = cloud.dayLogs || {};
+      new Set([...Object.keys(ld), ...Object.keys(cd)]).forEach(d => {
+        const l = ld[d], c = cd[d];
+        if (!l || !c) { merged.dayLogs[d] = l || c; return; }
+        const hours = {};
+        new Set([...Object.keys(l.hours || {}), ...Object.keys(c.hours || {})]).forEach(k => {
+          hours[k] = Math.max(Number((l.hours || {})[k]) || 0, Number((c.hours || {})[k]) || 0);
+        });
+        merged.dayLogs[d] = Object.assign({}, c, l, {
+          hours,
+          journals: unionList(l.journals, c.journals, j => typeof j === 'string' ? j : JSON.stringify(j)),
+          completed: unionList(l.completed, c.completed, x => JSON.stringify(x))
+        });
+      });
+
+      const ln = (local.freeScratchpadNote || '').trim(), cn = (cloud.freeScratchpadNote || '').trim();
+      if (cn && !ln.includes(cn)) {
+        merged.freeScratchpadNote = ln ? `${local.freeScratchpadNote}\n\n--- diğer cihazdan ---\n${cloud.freeScratchpadNote}` : cloud.freeScratchpadNote;
+      }
+      return merged;
+    }
+
+    // BULUTTAN ÇEKER: bulut değiştiyse ve bu cihazda gönderilmemiş kayıt varsa birleştirir
     async function pullCloudData() {
       if (!supabaseClient || !STATE.googleUser) return;
+      if (syncInFlight) return;
       try {
         setSyncStatus('saving');
         const { data, error } = await supabaseClient
           .from('user_states')
-          .select('state_data')
+          .select('state_data, updated_at')
           .eq('user_id', STATE.googleUser.id)
-          .single();
+          .maybeSingle();
+        if (error) throw error;
 
-        if (data && data.state_data) {
-          // Buluttaki tam veriyi alıp yerel belleğe yazar
-          STATE = Object.assign(STATE, data.state_data);
-          normalizeAreaTiers();
-          STATE.googleUser = { id: STATE.googleUser.id, name: STATE.googleUser.name, email: STATE.googleUser.email };
-          localStorage.setItem(STORE_KEY, JSON.stringify(STATE));
+        if (!data || !data.state_data) {
+          await syncAllToCloud(); // ilk giriş: yerel veriyi buluta yolla
+          return;
+        }
+        const cloudTs = data.updated_at || '';
+        const knownTs = getKnownCloudTs();
+
+        if (knownTs && sameTs(cloudTs, knownTs)) {
+          // Bulut, en son gördüğümüz haliyle aynı
+          if (isDirty()) await syncAllToCloud(); else setSyncStatus('synced');
+          return;
+        }
+
+        if (hadLocalData && (isDirty() || !knownTs)) {
+          // Bulut başka cihazdan değişmiş VE bu cihazda da kayıt var: kayıpsız birleştir
+          applyIncomingState(mergeStates(serializableState(STATE), data.state_data));
+          setKnownCloudTs(cloudTs);
+          renderAll();
+          await syncAllToCloud();
+        } else {
+          // Bu cihazda yeni bir şey yok: bulutu olduğu gibi al
+          applyIncomingState(data.state_data);
+          setKnownCloudTs(cloudTs);
+          setDirty(false);
+          hadLocalData = true;
           renderAll();
           setSyncStatus('synced');
-        } else {
-          // İlk defa giriyorsa elindeki hazır şablonu buluta yollar
-          await syncAllToCloud();
         }
       } catch (err) {
         console.warn('Bulut çekme:', err);
-        setSyncStatus('synced');
+        setSyncStatus('error');
       }
     }
 
-    // TÜM VERİYİ TEK SEFERDE BULUTA EŞİTLER
+    // BULUTA YAZAR: yazmadan önce bulutu kontrol eder; başka cihaz yazmışsa önce birleştirir
     async function syncAllToCloud() {
       if (!supabaseClient || !STATE.googleUser) return;
-      setSyncStatus('saving');
+      if (syncInFlight) { syncQueued = true; return syncInFlight; }
+      syncInFlight = (async () => {
+        setSyncStatus('saving');
+        try {
+          const userId = STATE.googleUser.id;
+          const { data: remote, error: readErr } = await supabaseClient
+            .from('user_states')
+            .select('state_data, updated_at')
+            .eq('user_id', userId)
+            .maybeSingle();
+          if (readErr) throw readErr;
+
+          if (remote && remote.state_data && remote.updated_at && !sameTs(remote.updated_at, getKnownCloudTs())) {
+            applyIncomingState(mergeStates(serializableState(STATE), remote.state_data));
+            renderAll();
+            showFinishNotification('Cihazlar eşitlendi', 'Başka cihazdaki kayıtlar buradakilerle birleştirildi.', false);
+          }
+
+          const nowIso = new Date().toISOString();
+          const { error: writeErr } = await supabaseClient
+            .from('user_states')
+            .upsert({ user_id: userId, state_data: serializableState(STATE), updated_at: nowIso }, { onConflict: 'user_id' });
+          if (writeErr) throw writeErr;
+          setKnownCloudTs(nowIso);
+          setDirty(false);
+          hadLocalData = true;
+          setSyncStatus('synced');
+        } catch (e) {
+          console.warn('Buluta yazma hatası:', e);
+          setSyncStatus('error');
+        } finally {
+          syncInFlight = null;
+          if (syncQueued) { syncQueued = false; syncAllToCloud(); }
+        }
+      })();
+      return syncInFlight;
+    }
+
+    // Sekmeye geri dönünce / internet gelince eşitle
+    let lastFocusPull = 0;
+    function pullIfStale() {
+      if (!STATE.googleUser || !supabaseClient) return;
+      if (Date.now() - lastFocusPull < 15000) return;
+      lastFocusPull = Date.now();
+      pullCloudData();
+    }
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') pullIfStale(); });
+    window.addEventListener('focus', pullIfStale);
+    window.addEventListener('online', () => { if (isDirty()) syncAllToCloud(); });
+
+    // Otomatik günlük yedek (bu tarayıcıda, son 7 gün)
+    function getDailyBackups() {
+      try { return JSON.parse(localStorage.getItem(BACKUP_KEY) || '[]'); } catch (e) { return []; }
+    }
+    function maybeDailyBackup() {
       try {
-        const payload = {
-          user_id: STATE.googleUser.id,
-          state_data: STATE,
-          updated_at: new Date().toISOString()
-        };
-        await supabaseClient.from('user_states').upsert(payload, { onConflict: 'user_id' });
-        setSyncStatus('synced');
+        const list = getDailyBackups();
+        const today = getTodayLocalDate();
+        if (list.length && list[0].date === today) return;
+        list.unshift({ date: today, savedAt: new Date().toISOString(), state: serializableState(STATE) });
+        try {
+          localStorage.setItem(BACKUP_KEY, JSON.stringify(list.slice(0, MAX_DAILY_BACKUPS)));
+        } catch (quotaErr) {
+          localStorage.setItem(BACKUP_KEY, JSON.stringify(list.slice(0, 3)));
+        }
       } catch (e) {
-        console.warn('Buluta yazma hatası:', e);
-        setSyncStatus('error');
+        console.warn('Otomatik yedek alınamadı:', e);
       }
+    }
+    function renderAutoBackupList() {
+      const el = document.getElementById('autoBackupList');
+      if (!el) return;
+      const list = getDailyBackups();
+      if (!list.length) {
+        el.innerHTML = `<p class="text-[11px] text-slate-400">Henüz otomatik yedek yok.</p>`;
+        return;
+      }
+      el.innerHTML = list.map((b, i) => {
+        const d = new Date(b.date + 'T00:00:00');
+        const label = d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', weekday: 'short' });
+        const n = Object.keys((b.state && b.state.dayLogs) || {}).length;
+        return `<button onclick="restoreAutoBackup(${i})" class="w-full text-left px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-xs flex justify-between"><span class="font-bold">${label}</span><span class="text-slate-400">${n} gün kaydı</span></button>`;
+      }).join('');
+    }
+    function restoreAutoBackup(idx) {
+      const b = getDailyBackups()[idx];
+      if (!b || !b.state) return;
+      if (!confirm(`${b.date} tarihli otomatik yedek geri yüklensin mi? Şu anki durum "Geri al" ile kurtarılabilir.`)) return;
+      document.getElementById('importMenu').classList.add('hidden');
+      rememberUndo();
+      applyIncomingState(b.state);
+      saveState();
+      renderAll();
+      showFinishNotification('Yedek geri yüklendi', `${b.date} tarihli otomatik yedek uygulandı.`, false, true);
+    }
+
+    // Geri al (silme, arşivleme ve yedek yükleme için)
+    function rememberUndo() {
+      lastUndoSnapshot = JSON.stringify(serializableState(STATE));
+    }
+    function undoLastFinishAction() {
+      if (!lastUndoSnapshot) return;
+      applyIncomingState(JSON.parse(lastUndoSnapshot));
+      lastUndoSnapshot = null;
+      saveState();
+      renderAll();
+      const btn = document.getElementById('toastUndoBtn');
+      if (btn) btn.classList.add('hidden');
+      showFinishNotification('Geri alındı', 'Son işlem geri alındı.', false);
     }
 
     async function pushDayLogToCloud(dateStr, areaId, totalMinutes, noteText, subtasksArray) {
@@ -944,6 +1194,13 @@
       const dateEl = document.getElementById('liveDateText');
       if (clockEl) clockEl.innerText = now.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
       if (dateEl) dateEl.innerText = now.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', weekday: 'short' });
+      // Sekme gece yarısını geçerse "bugün" yeni güne kaysın (kayıtlar önceki güne yazılmasın)
+      const todayNow = getTodayLocalDate();
+      if (todayNow !== TODAY_STR) {
+        TODAY_STR = todayNow;
+        maybeDailyBackup();
+        renderAll();
+      }
     }
 
     function toggleTheme() {
@@ -1084,11 +1341,14 @@
     }
     function deleteFocusGroup(groupId) {
       if (STATE.focusGroups.length <= 1) return;
+      rememberUndo();
+      markDeleted(groupId);
       const fallback = STATE.focusGroups.find(g => g.id !== groupId);
       STATE.areas.forEach(a => { if (a.groupId === groupId) a.groupId = fallback.id; });
       STATE.focusGroups = STATE.focusGroups.filter(g => g.id !== groupId);
       saveLocal();
       renderAll();
+      showFinishNotification('Grup silindi', 'Alanlar başka gruba taşındı.', false, true);
     }
 
     function toggleNewAreaBoxInGroup(groupId) {
@@ -1429,17 +1689,24 @@
       renderAll();
     }
     function deleteMainArea(areaId) {
+      const removed = STATE.areas.find(area => String(area.id) === String(areaId));
+      rememberUndo();
+      markDeleted(areaId);
       STATE.areas = STATE.areas.filter(area => String(area.id) !== String(areaId));
       if (String(STATE.expandedAreaId) === String(areaId)) STATE.expandedAreaId = null;
       saveState();
       renderAll();
+      showFinishNotification('Odak alanı silindi', `${removed ? removed.name : 'Alan'} kaldırıldı. Takvim kayıtları korunuyor.`, false, true);
     }
     function deleteSubtask(areaId, subId) {
       const area = STATE.areas.find(item => String(item.id) === String(areaId));
       if (!area) return;
+      rememberUndo();
+      markDeleted(subId);
       area.subtasks = (area.subtasks || []).filter(sub => String(sub.id) !== String(subId));
       saveState();
       renderAll();
+      showFinishNotification('Alt görev silindi', area.name, false, true);
     }
     function toggleInlineForm(fId, inpId) {
       const el = document.getElementById(fId);
@@ -1471,6 +1738,8 @@
     }
     function deleteAreaNote(areaId, noteId) {
       const area = STATE.areas.find(a => String(a.id) === String(areaId));
+      rememberUndo();
+      markDeleted(noteId);
       area.notes = area.notes.filter(n => String(n.id) !== String(noteId));
       saveLocal();
       renderAll();
@@ -1526,6 +1795,7 @@
       const area = STATE.areas.find(a => String(a.id) === String(areaId));
       const sub = area.subtasks.find(s => String(s.id) === String(subId));
       if (!sub) return;
+      rememberUndo();
       sub.completedShortTerm = true;
       const nowTime = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
       STATE.completedArchive.unshift({
@@ -1538,7 +1808,7 @@
         totalDays: 1,
         totalMins: sub.stepMins || 45
       });
-      showFinishNotification(sub.title, `${area.name} alt görevi arşive eklendi!`, true);
+      showFinishNotification(sub.title, `${area.name} alt görevi arşive eklendi!`, true, true);
       saveLocal();
       renderAll();
     }
@@ -1548,6 +1818,7 @@
       if (!area) return;
       const nowTime = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
       const st = getTrackStats(`area-${area.id}`);
+      rememberUndo();
       STATE.completedArchive.unshift({
         id: Date.now(),
         title: area.name,
@@ -1558,22 +1829,25 @@
         totalDays: Math.max(1, st.days),
         totalMins: Math.max(30, st.mins)
       });
+      markDeleted(areaId);
       STATE.areas = STATE.areas.filter(a => String(a.id) !== String(areaId));
-      showFinishNotification(area.name, `Ana odak alanı arşivlendi.`, true);
+      showFinishNotification(area.name, `Ana odak alanı arşivlendi.`, true, true);
       saveLocal();
       renderAll();
     }
 
-    function showFinishNotification(title, subText, shouldCelebrate) {
+    function showFinishNotification(title, subText, shouldCelebrate, withUndo) {
       if (shouldCelebrate && typeof confetti === 'function') {
         confetti({ particleCount: 60, spread: 60, origin: { y: 0.6 } });
       }
       const toast = document.getElementById('celebrationToast');
       document.getElementById('toastTitle').innerText = title;
       document.getElementById('toastSub').innerText = subText;
+      const undoBtn = document.getElementById('toastUndoBtn');
+      if (undoBtn) undoBtn.classList.toggle('hidden', !(withUndo && lastUndoSnapshot));
       toast.classList.remove('hidden');
       if (toastTimeoutHandle) clearTimeout(toastTimeoutHandle);
-      toastTimeoutHandle = setTimeout(() => { toast.classList.add('hidden'); }, 5000);
+      toastTimeoutHandle = setTimeout(() => { toast.classList.add('hidden'); }, withUndo ? 9000 : 5000);
     }
 
     // ==========================================
@@ -2162,6 +2436,7 @@
     }
     function deleteJournalFromDay(idx) {
       const log = ensureDayLog(STATE.activeDayModalDate);
+      rememberUndo();
       log.journals.splice(idx, 1);
       saveLocal();
       renderModalJournalList();
@@ -2312,7 +2587,7 @@
     }
 
     function toggleExportMenu() { document.getElementById('exportMenu').classList.toggle('hidden'); }
-    function toggleImportMenu() { document.getElementById('importMenu').classList.toggle('hidden'); }
+    function toggleImportMenu() { renderAutoBackupList(); document.getElementById('importMenu').classList.toggle('hidden'); }
     function selectBackupFile() {
       document.getElementById('importMenu').classList.add('hidden');
       document.getElementById('backupFileInput').click();
@@ -2356,11 +2631,11 @@
           throw new Error('Geçersiz yedek dosyası');
         }
 
-        Object.assign(STATE, importedState);
-        normalizeAreaTiers();
+        rememberUndo();
+        applyIncomingState(importedState);
         renderAll();
         saveState();
-        alert('Yedek başarıyla yüklendi.');
+        showFinishNotification('Yedek yüklendi', 'JSON yedeği uygulandı.', false, true);
       } catch (error) {
         alert('Yedek dosyası okunamadı veya geçerli bir FocoDesk yedeği değil.');
       } finally {
@@ -2392,6 +2667,7 @@
 
     window.onload = async function() {
       loadLocal();
+      if (hadLocalData) maybeDailyBackup();
       const dashboardColumn = document.getElementById('dashboardColumn');
       if (dashboardColumn && STATE.layout === 'calendar-top') {
         dashboardColumn.style.flexDirection = 'column-reverse';
