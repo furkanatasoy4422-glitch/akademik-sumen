@@ -1904,6 +1904,16 @@
       return STATE.tagColors[tag];
     }
     let tagColorsDirty = false;
+    // eski hatadan kalan sahte "#39" rengini temizle
+    function cleanupTagColors() {
+      if (!STATE.tagColors) return;
+      const real = new Set();
+      Object.values(STATE.dayLogs || {}).forEach(l => {
+        (l.journals || []).forEach(j => extractTags(j).forEach(t => real.add(t)));
+        Object.values(l.areaNotes || {}).forEach(j => extractTags(j).forEach(t => real.add(t)));
+      });
+      Object.keys(STATE.tagColors).forEach(k => { if (/^#\d+$/.test(k) && !real.has(k)) { delete STATE.tagColors[k]; tagColorsDirty = true; } });
+    }
 
     function formatNoteDate(dStr) {
       const d = new Date(dStr + 'T12:00:00');
@@ -1919,10 +1929,18 @@
     function selectWorkArea(id) { activeWorkArea = (id && id !== activeWorkArea) ? id : null; renderWorkNotes(); }
 
     function tagifyHtml(text) {
-      return escapeHtml(text).replace(TAG_RE, m => {
+      // Önce ham metinde etiketleri bul, sonra parçaları ayrı ayrı güvenli hale getir
+      // (yoksa ' işareti &#39; olup sahte "#39" etiketi oluşuyordu)
+      const raw = String(text);
+      let out = '', last = 0;
+      raw.replace(TAG_RE, (m, idx) => {
+        out += escapeHtml(raw.slice(last, idx));
         const t = trLower(m);
-        return `<button onclick="event.stopPropagation(); selectTagFilter('${t}')" style="--h:${tagHue(t)}" class="tagpill px-1.5 rounded-full text-[10px] font-bold align-baseline">${m}</button>`;
+        out += `<button onclick="event.stopPropagation(); selectTagFilter('${escapeHtml(t)}')" style="--h:${tagHue(t)}" class="tagpill px-1.5 rounded-full text-[10px] font-bold align-baseline">${escapeHtml(m)}</button>`;
+        last = idx + m.length;
+        return m;
       });
+      return out + escapeHtml(raw.slice(last));
     }
     function setCollapsedUi(bodyId, iconId, collapsed) {
       const body = document.getElementById(bodyId), icon = document.getElementById(iconId);
@@ -2029,6 +2047,7 @@
         ) + (matched.length > notesShowLimit
           ? `<button onclick="showMoreNotes()" class="mt-1 py-1.5 rounded-xl text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40">Daha fazla göster (${matched.length - notesShowLimit})</button>` : '');
       }
+      cleanupTagColors();
       if (tagColorsDirty) { tagColorsDirty = false; setTimeout(saveLocal, 0); }
     }
     function selectTagFilter(t) {
