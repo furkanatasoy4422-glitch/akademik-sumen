@@ -76,6 +76,13 @@
       outline-offset: 2px;
     }
   </style>
+  <style>
+    .tagpill { background: hsla(var(--h), 70%, 55%, .14); color: hsl(var(--h), 60%, 38%); }
+    .dark .tagpill { background: hsla(var(--h), 70%, 60%, .16); color: hsl(var(--h), 80%, 72%); }
+    .tagpill.is-active { background: hsl(var(--h), 65%, 50%); color: #fff; }
+    .stat-tile { transition: transform .15s ease; }
+    .stat-tile:hover { transform: translateY(-1px); }
+  </style>
 </head>
 <body class="bg-[#f8fafc] text-slate-800 dark:bg-[#0b0f17] dark:text-slate-100 min-h-screen flex flex-col font-sans antialiased transition-colors duration-200">
 
@@ -297,28 +304,21 @@
         </div>
       </div>
 
-      <!-- ETİKETLER -->
+      <!-- NOTLAR & ETİKETLER -->
       <section class="bg-white dark:bg-[#111827] rounded-2xl border border-[#e2e8f0] dark:border-slate-800 shadow-sm overflow-hidden">
-        <div class="px-4 py-3 flex items-center justify-between border-b border-slate-100 dark:border-slate-800/80">
-          <h2 contenteditable="true" spellcheck="false" class="text-xs font-extrabold uppercase tracking-wider text-slate-600 dark:text-slate-300 outline-none focus:bg-slate-100 dark:focus:bg-slate-800 px-1.5 py-0.5 -ml-1.5 rounded cursor-text">Etiketler</h2>
-          <button onclick="toggleSectionCollapse('tags')" title="Kapat / Aç" class="w-6 h-6 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center text-slate-400 hover:text-slate-700 transition">
-            <i id="tagsCollapseIcon" data-lucide="chevron-down" class="w-4 h-4"></i>
-          </button>
-        </div>
-
-        <div id="tagsCardBody" class="p-3 flex flex-col gap-2.5">
-          <div id="tagsBadgeList" class="flex flex-wrap gap-1.5"></div>
-          <div class="flex gap-1.5">
-            <input id="customTagInput" type="text" placeholder="+ Etiket ekle (#şükür, #odak)" onkeydown="if(event.key==='Enter') addNewTag()" class="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1.5 text-xs outline-none focus:border-indigo-500">
-            <button onclick="addNewTag()" class="px-2.5 py-1.5 bg-slate-800 dark:bg-slate-700 text-white rounded-xl text-xs font-bold hover:opacity-90">Ekle</button>
+        <button onclick="toggleSectionCollapse('tags')" class="w-full px-3 py-2 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
+          <span class="flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-wider text-slate-600 dark:text-slate-300">📝 Notlar
+            <span id="notesCountBadge" class="normal-case tracking-normal text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500"></span>
+          </span>
+          <i id="tagsCollapseIcon" data-lucide="chevron-down" class="w-4 h-4 text-slate-400"></i>
+        </button>
+        <div id="tagsCardBody" class="px-3 pb-3 pt-1 flex flex-col gap-2">
+          <div class="relative">
+            <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2"></i>
+            <input id="notesSearchInput" type="text" oninput="onNotesSearch(this.value)" placeholder="Notlarda ara..." class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-8 pr-2.5 py-1.5 text-xs outline-none focus:border-indigo-500">
           </div>
-          <div class="bg-slate-50/80 dark:bg-slate-900/60 rounded-xl p-2.5 border border-slate-200/60 dark:border-slate-800">
-            <div class="flex items-center justify-between mb-1.5">
-              <span id="activeTagHeader" class="text-[11px] font-bold text-indigo-600 dark:text-indigo-400">#şükür Notları</span>
-              <button onclick="selectTagFilter(null)" class="text-[10px] font-semibold text-slate-400 hover:text-slate-600">Tümü</button>
-            </div>
-            <div id="tagHistoryFeed" class="flex flex-col gap-1.5 max-h-40 overflow-y-auto text-xs"></div>
-          </div>
+          <div id="tagsBadgeList" class="flex flex-wrap gap-1"></div>
+          <div id="tagHistoryFeed" class="flex flex-col gap-1.5 max-h-80 overflow-y-auto pr-1"></div>
         </div>
       </section>
     </aside>
@@ -367,30 +367,13 @@
           </div>
         </div>
 
-        <!-- SAĞ KART: GERÇEK VERİ ANALİZİ -->
-        <div class="md:col-span-8 max-h-[195px] overflow-hidden bg-white dark:bg-[#111827] rounded-2xl border border-[#e2e8f0] dark:border-slate-800 p-4 shadow-sm flex items-stretch justify-between gap-3 min-h-[175px]">
-          <div class="flex-1 flex flex-col justify-between min-w-0">
-            <div class="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-100 dark:border-slate-800/80">
-              <div class="flex items-center gap-2">
-                <span id="analysisSlideTitle" class="text-xs font-extrabold text-slate-900 dark:text-white">Alan Süreleri & Dağılım</span>
-              </div>
-              <div class="bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg flex text-[10px] font-bold">
-                <button id="btnPeriodWeek" onclick="setAnalysisPeriod('week')" class="px-2.5 py-0.5 rounded-md text-slate-500 dark:text-slate-400 transition">Haftalık</button>
-                <button id="btnPeriodMonth" onclick="setAnalysisPeriod('month')" class="px-2.5 py-0.5 rounded-md bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white transition">Aylık</button>
-              </div>
-            </div>
-            <div id="analysisSlideBody" class="my-auto py-2 flex flex-col gap-2 max-h-[190px] overflow-y-auto pr-1"></div>
+        <!-- SAĞ KART: ÖZET -->
+        <div class="md:col-span-8 bg-white dark:bg-[#111827] rounded-2xl border border-[#e2e8f0] dark:border-slate-800 p-4 shadow-sm min-h-[175px] flex flex-col gap-3">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-extrabold text-slate-900 dark:text-white">📊 Özet</span>
+            <span id="summaryRangeLabel" class="text-[10px] font-semibold text-slate-400"></span>
           </div>
-
-          <div class="flex flex-col items-center justify-between py-1 pl-2.5 border-l border-slate-100 dark:border-slate-800/80 select-none">
-            <button onclick="stepAnalysisSlide(-1)" class="w-6 h-6 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center text-slate-400 hover:text-slate-700">
-              <i data-lucide="chevron-up" class="w-3.5 h-3.5"></i>
-            </button>
-            <div id="verticalDotsContainer" class="flex flex-col items-center gap-1.5 my-1"></div>
-            <button onclick="stepAnalysisSlide(1)" class="w-6 h-6 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center text-slate-400 hover:text-slate-700">
-              <i data-lucide="chevron-down" class="w-3.5 h-3.5"></i>
-            </button>
-          </div>
+          <div id="summaryTiles" class="grid grid-cols-2 lg:grid-cols-4 gap-2.5 flex-1"></div>
         </div>
       </div>
 
@@ -1602,7 +1585,7 @@
               <div onclick="toggleExpandArea('${area.id}')" ondblclick="startEditAreaName('${area.id}')" class="flex items-center gap-1.5 cursor-pointer flex-1 min-w-0">
                 <span class="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">${area.name}</span>
               </div>
-              <button onclick="startEditAreaName('${area.id}')" class="text-slate-400 hover:text-indigo-600 p-0.5"><i data-lucide="pencil" class="w-3 h-3"></i></button>
+              <button onclick="startEditAreaName('${area.id}')" class="text-slate-400 hover:text-indigo-600 p-0.5 md:opacity-0 md:group-hover/area:opacity-100 transition"><i data-lucide="pencil" class="w-3 h-3"></i></button>
             `;
 
             areasHtml += `
@@ -1611,19 +1594,19 @@
                    ondragover="handleAreaDragOver(event)"
                    ondragleave="handleAreaDragLeave(event)"
                    ondrop="handleAreaDrop(event, '${area.id}')"
-                   class="draggable-item rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/40 dark:bg-[#151e30] overflow-hidden">
-                <div class="px-2 py-2 bg-white dark:bg-[#111827] flex items-center justify-between gap-1">
+                   class="draggable-item group/area rounded-lg overflow-hidden hover:bg-slate-50 dark:hover:bg-slate-800/40 transition ${isExpanded ? 'bg-slate-50 dark:bg-slate-800/40' : ''}">
+                <div class="px-1.5 py-1 flex items-center justify-between gap-1">
                   <div class="flex items-center gap-1.5 flex-1 min-w-0">
-                    <span class="text-slate-300 hover:text-slate-500 cursor-grab shrink-0"><i data-lucide="grip-vertical" class="w-3.5 h-3.5"></i></span>
-                    <button onclick="openColorPickerForArea('${area.id}')" class="w-3.5 h-3.5 rounded-full shrink-0" style="background-color:${area.color}"></button>
+                    <span class="text-slate-300 hover:text-slate-500 cursor-grab shrink-0 md:opacity-0 md:group-hover/area:opacity-100 transition"><i data-lucide="grip-vertical" class="w-3 h-3"></i></span>
+                    <button onclick="openColorPickerForArea('${area.id}')" class="w-2.5 h-2.5 rounded-full shrink-0 ring-2 ring-white/60 dark:ring-slate-900" style="background-color:${area.color}"></button>
                     ${areaTitleDisplayHtml}
                   </div>
                   <div class="flex items-center gap-1 shrink-0">
-                    <button onclick="toggleMainAreaChainLink('${area.id}')" class="w-6 h-6 rounded-md flex items-center justify-center ${isAreaChained ? 'text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}" style="${isAreaChained ? `background-color:${area.color}` : ''}"><i data-lucide="link" class="w-3 h-3"></i></button>
-                    <button onclick="quickLogAreaToday('${area.id}')" title="Bugüne ${quickLogMinutes} dakika ekle" class="text-[10px] font-extrabold px-1.5 py-0.5 rounded-md ${todayAreaMins > 0 ? 'text-white' : 'text-slate-500 bg-slate-100 dark:bg-slate-800'}" style="${todayAreaMins > 0 ? `background-color:${area.color}` : ''}">+${quickLogMinutes} dk</button>
-                    <button onclick="finishMainArea('${area.id}')" class="w-6 h-6 rounded-md bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/50 border border-amber-200/70 text-xs flex items-center justify-center">🎉</button>
-                    <button onclick="deleteMainArea('${area.id}')" title="Odak alanını sil" aria-label="Odak alanını sil" class="w-6 h-6 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 flex items-center justify-center"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>
-                    <button onclick="toggleExpandArea('${area.id}')" class="text-slate-400 p-0.5"><i data-lucide="${isExpanded ? 'chevron-up' : 'chevron-down'}" class="w-3.5 h-3.5"></i></button>
+                    <button onclick="toggleMainAreaChainLink('${area.id}')" class="w-5 h-5 rounded-md flex items-center justify-center md:opacity-0 md:group-hover/area:opacity-100 transition ${isAreaChained ? 'text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}" style="${isAreaChained ? `background-color:${area.color}` : ''}"><i data-lucide="link" class="w-2.5 h-2.5"></i></button>
+                    <button onclick="quickLogAreaToday('${area.id}')" title="Bugüne ${quickLogMinutes} dakika ekle" class="text-[10px] font-extrabold px-1.5 py-0.5 rounded-full ${todayAreaMins > 0 ? 'text-white shadow-sm' : 'text-slate-500 bg-slate-100 dark:bg-slate-800'}" style="${todayAreaMins > 0 ? `background-color:${area.color}` : ''}">${todayAreaMins > 0 ? '✓ ' + formatMinutesLabel(todayAreaMins, true) : '+' + quickLogMinutes + ' dk'}</button>
+                    <button onclick="finishMainArea('${area.id}')" title="Alanı tamamla ve arşivle" class="w-5 h-5 rounded-md hover:bg-amber-100 dark:hover:bg-amber-950/50 text-[11px] flex items-center justify-center md:opacity-0 md:group-hover/area:opacity-100 transition">🎉</button>
+                    <button onclick="deleteMainArea('${area.id}')" title="Odak alanını sil" aria-label="Odak alanını sil" class="w-5 h-5 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 flex items-center justify-center md:opacity-0 md:group-hover/area:opacity-100 transition"><i data-lucide="x" class="w-3 h-3"></i></button>
+                    <button onclick="toggleExpandArea('${area.id}')" class="text-slate-400 p-0.5"><i data-lucide="${isExpanded ? 'chevron-up' : 'chevron-down'}" class="w-3 h-3"></i></button>
                   </div>
                 </div>
 
@@ -1655,15 +1638,15 @@
         const sec = document.createElement('section');
         sec.className = "bg-white dark:bg-[#111827] rounded-2xl border border-[#e2e8f0] dark:border-slate-800 shadow-sm overflow-hidden";
         sec.innerHTML = `
-          <div class="px-3.5 py-2.5 flex items-center justify-between border-b border-slate-100 dark:border-slate-800/80">
+          <div class="px-3 py-1.5 flex items-center justify-between border-b border-slate-100 dark:border-slate-800/80">
             ${groupHeaderTitleHtml}
             <div class="flex items-center gap-1 shrink-0">
-              <button onclick="toggleNewAreaBoxInGroup('${group.id}')" class="px-2 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600 text-[10px] font-extrabold flex items-center gap-1"><i data-lucide="plus" class="w-3 h-3"></i> Alan Ekle</button>
+              <button onclick="toggleNewAreaBoxInGroup('${group.id}')" title="Alan ekle" class="w-6 h-6 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/60 text-indigo-500 flex items-center justify-center"><i data-lucide="plus" class="w-3.5 h-3.5"></i></button>
               ${STATE.focusGroups.length > 1 ? `<button onclick="deleteFocusGroup('${group.id}')" class="w-6 h-6 rounded-lg hover:bg-rose-50 text-slate-400 hover:text-rose-500 flex items-center justify-center"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>` : ''}
               <button onclick="toggleGroupCollapse('${group.id}')" class="w-6 h-6 rounded-lg hover:bg-slate-100 text-slate-400 flex items-center justify-center"><i data-lucide="${group.collapsed ? 'chevron-right' : 'chevron-down'}" class="w-4 h-4"></i></button>
             </div>
           </div>
-          <div class="${group.collapsed ? 'hidden' : 'flex'} p-3 flex-col gap-2">
+          <div class="${group.collapsed ? 'hidden' : 'flex'} p-1.5 flex-col gap-1">
             <div id="newAreaBox-${group.id}" class="hidden p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 mb-1">
               <input id="newAreaInput-${group.id}" type="text" placeholder="Yeni odak alanı..." onkeydown="if(event.key==='Enter') createNewAreaInGroup('${group.id}')" class="w-full bg-white dark:bg-slate-800 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold outline-none mb-2">
               <select id="newAreaTier-${group.id}" class="w-full mb-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-[10px] text-slate-600 dark:text-slate-300">
@@ -1677,7 +1660,7 @@
                 <button onclick="createNewAreaInGroup('${group.id}')" class="px-3 py-1 bg-indigo-600 text-white rounded-lg text-[11px] font-bold">Ekle</button>
               </div>
             </div>
-            <div class="flex flex-col gap-2">${areasHtml}</div>
+            <div class="flex flex-col gap-0.5">${areasHtml}</div>
           </div>
         `;
         groupsWrapper.appendChild(sec);
@@ -1853,44 +1836,84 @@
     // ==========================================
     // 5. ETİKETLER & GEÇMİŞ AKIŞI
     // ==========================================
+    const TAG_RE = /#[\p{L}\p{N}_]+/gu;
+    let notesSearchQuery = '';
+    let notesShowLimit = 40;
+    const trLower = v => String(v || '').toLocaleLowerCase('tr');
+    function extractTags(text) { return (String(text).match(TAG_RE) || []).map(trLower); }
+    function tagHue(tag) {
+      let h = 0;
+      for (const ch of tag) h = (h * 31 + ch.codePointAt(0)) % 360;
+      return h;
+    }
+    function formatNoteDate(dStr) {
+      const d = new Date(dStr + 'T12:00:00');
+      if (dStr === TODAY_STR) return 'Bugün';
+      const y = new Date(); y.setDate(y.getDate() - 1);
+      if (dStr === formatLocalDate(y)) return 'Dün';
+      return d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', weekday: 'short' });
+    }
+    function onNotesSearch(v) { notesSearchQuery = v; notesShowLimit = 40; renderLeftTags(); }
+    function showMoreNotes() { notesShowLimit += 40; renderLeftTags(); }
+
     function renderLeftTags() {
+      const body = document.getElementById('tagsCardBody');
       const badgeList = document.getElementById('tagsBadgeList');
-      const headerEl = document.getElementById('activeTagHeader');
       const feedEl = document.getElementById('tagHistoryFeed');
-      if (!badgeList || !headerEl || !feedEl) return;
+      const countEl = document.getElementById('notesCountBadge');
+      const iconEl = document.getElementById('tagsCollapseIcon');
+      if (!body || !badgeList || !feedEl) return;
+      body.classList.toggle('hidden', !!STATE.collapseTags);
+      if (iconEl) iconEl.setAttribute('data-lucide', STATE.collapseTags ? 'chevron-right' : 'chevron-down');
 
-      badgeList.innerHTML = STATE.tags.map(tag => {
-        const isActive = STATE.activeTagFilter === tag;
-        return `
-          <div class="inline-flex items-center rounded-xl text-xs font-bold transition ${isActive ? 'bg-indigo-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'}">
-            <button onclick="selectTagFilter('${tag}')" class="px-2.5 py-1">${tag}</button>
-            <button onclick="removeTag('${tag}')" class="pr-2 pl-0.5 py-1 opacity-60 hover:opacity-100">×</button>
-          </div>
-        `;
-      }).join('');
-
-      headerEl.innerText = STATE.activeTagFilter ? `${STATE.activeTagFilter} Notları` : 'Tüm Notlar';
-      const matched = [];
-      Object.entries(STATE.dayLogs).sort((a, b) => b[0].localeCompare(a[0])).forEach(([dStr, log]) => {
-        (log.journals || []).forEach(jText => {
-          if (!STATE.activeTagFilter || jText.toLowerCase().includes(STATE.activeTagFilter.toLowerCase())) {
-            matched.push({ dateStr: dStr, text: jText });
-          }
+      const all = [];
+      const counts = {};
+      Object.entries(STATE.dayLogs).sort((x, y) => y[0].localeCompare(x[0])).forEach(([dStr, log]) => {
+        (log.journals || []).forEach(j => {
+          const text = typeof j === 'string' ? j : String(j && j.text || '');
+          const tags = [...new Set(extractTags(text))];
+          tags.forEach(t => { counts[t] = (counts[t] || 0) + 1; });
+          all.push({ dateStr: dStr, text, tags });
         });
       });
+      if (countEl) countEl.innerText = all.length;
+
+      let active = STATE.activeTagFilter ? trLower(STATE.activeTagFilter) : null;
+      if (active && !counts[active]) { active = null; STATE.activeTagFilter = null; }
+
+      const tagList = Object.keys(counts).sort((x, y) => counts[y] - counts[x] || x.localeCompare(y, 'tr'));
+      badgeList.innerHTML = [
+        `<button onclick="selectTagFilter(null)" class="px-2 py-0.5 rounded-full text-[11px] font-bold transition ${!active ? 'bg-slate-800 text-white dark:bg-white dark:text-slate-900' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}">Tümü <span class="opacity-60">${all.length}</span></button>`,
+        ...tagList.map(t => `<button onclick="selectTagFilter('${escapeHtml(t)}')" style="--h:${tagHue(t)}" class="tagpill ${active === t ? 'is-active' : ''} px-2 py-0.5 rounded-full text-[11px] font-bold transition">${escapeHtml(t)} <span class="opacity-60">${counts[t]}</span></button>`)
+      ].join('');
+
+      const q = trLower(notesSearchQuery.trim());
+      const matched = all.filter(n => (!active || n.tags.includes(active)) && (!q || trLower(n.text).includes(q)));
 
       if (!matched.length) {
-        feedEl.innerHTML = `<div class="text-[11px] text-slate-400 italic py-1">Kayıt yok.</div>`;
-      } else {
-        feedEl.innerHTML = matched.map(m => `
-          <div class="p-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-            <div class="text-[10px] font-extrabold text-indigo-600 dark:text-indigo-400">${m.dateStr}</div>
-            <div class="text-[11px] text-slate-700 dark:text-slate-200 leading-snug">${m.text}</div>
-          </div>
-        `).join('');
+        feedEl.innerHTML = `<div class="text-[11px] text-slate-400 italic py-2 text-center">${all.length ? 'Eşleşen not yok.' : 'Henüz not yok. Takvimde bir güne tıklayıp not ekleyebilirsin.'}</div>`;
+        return;
       }
+      let lastDate = null;
+      feedEl.innerHTML = matched.slice(0, notesShowLimit).map(n => {
+        const html = escapeHtml(n.text).replace(TAG_RE, m => {
+          const t = trLower(m);
+          return `<button onclick="selectTagFilter('${t}')" style="--h:${tagHue(t)}" class="tagpill px-1.5 rounded-full text-[10px] font-bold align-baseline">${m}</button>`;
+        });
+        const dateHead = n.dateStr !== lastDate
+          ? `<div class="text-[10px] font-extrabold uppercase tracking-wide text-slate-400 mt-1 first:mt-0 px-0.5">${formatNoteDate(n.dateStr)}</div>`
+          : '';
+        lastDate = n.dateStr;
+        return `${dateHead}<div onclick="openDayModal('${n.dateStr}')" class="cursor-pointer px-2.5 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200/60 dark:border-slate-700/60 text-[11.5px] leading-snug text-slate-700 dark:text-slate-200 transition">${html}</div>`;
+      }).join('') + (matched.length > notesShowLimit
+        ? `<button onclick="showMoreNotes()" class="mt-1 py-1.5 rounded-xl text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40">Daha fazla göster (${matched.length - notesShowLimit})</button>`
+        : '');
     }
-    function selectTagFilter(t) { STATE.activeTagFilter = t; renderLeftTags(); }
+    function selectTagFilter(t) {
+      STATE.activeTagFilter = (t && trLower(t) !== trLower(STATE.activeTagFilter)) ? trLower(t) : null;
+      renderLeftTags();
+      lucide.createIcons();
+    }
     function addNewTag() {
       const inp = document.getElementById('customTagInput');
       let val = inp.value.trim();
@@ -1911,9 +1934,9 @@
     function toggleSectionCollapse(which) {
       if (which === 'tags') {
         STATE.collapseTags = !STATE.collapseTags;
-        document.getElementById('tagsCardBody').classList.toggle('hidden', STATE.collapseTags);
-        document.getElementById('tagsCollapseIcon').setAttribute('data-lucide', STATE.collapseTags ? 'chevron-right' : 'chevron-down');
+        renderLeftTags();
         lucide.createIcons();
+        saveLocal();
       }
     }
 
@@ -1954,194 +1977,88 @@
       renderAnalysisCard();
     }
 
-    function renderAnalysisCard() {
-      const titleEl = document.getElementById('analysisSlideTitle');
-      const bodyEl = document.getElementById('analysisSlideBody');
-      const dotsEl = document.getElementById('verticalDotsContainer');
-      if (!titleEl || !bodyEl || !dotsEl) return;
-
-      dotsEl.innerHTML = [0, 1, 2, 3, 4].map(i => `
-        <button onclick="goToAnalysisSlide(${i})" class="w-2 rounded-full transition-all ${STATE.analysisSlide === i ? 'h-5 bg-indigo-600 dark:bg-indigo-400' : 'h-2 bg-slate-300 dark:bg-slate-700'}"></button>
-      `).join('');
-
-      const today = new Date();
-      const dateKey = date => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-      const analysisWeekStart = getMondayStartDate(today);
-      const analysisWeekEnd = new Date(analysisWeekStart);
-      analysisWeekEnd.setDate(analysisWeekStart.getDate() + 6);
-      const analysisStartDate = STATE.analysisPeriod === 'week'
-        ? formatLocalDate(analysisWeekStart)
-        : formatLocalDate(new Date(STATE.year, STATE.month, 1));
-      const analysisEndDate = STATE.analysisPeriod === 'week'
-        ? formatLocalDate(analysisWeekEnd)
-        : formatLocalDate(new Date(STATE.year, STATE.month + 1, 0));
-      const sumFocusMinutesBetween = (start, end) => {
-        let total = 0;
-        for (const [dateStr, log] of Object.entries(STATE.dayLogs)) {
-          if (dateStr >= start && dateStr <= end) {
-            total += Object.values(log.hours || {}).reduce((dayTotal, minutes) => dayTotal + (Number(minutes) || 0), 0);
-          }
-        }
-        return total;
-      };
-
-      if (STATE.analysisSlide === 0) {
-        titleEl.innerText = '1. Odak Alanı Dağılımı';
-        bodyEl.className = 'my-auto py-1 flex flex-col gap-2 max-h-[145px] overflow-y-auto pr-2';
-        bodyEl.style.maxHeight = '145px';
-        bodyEl.style.overflowY = 'auto';
-        let totalAll = 0;
-        const rows = STATE.areas.map(a => {
-          let m = 0, d = 0;
-          Object.entries(STATE.dayLogs).forEach(([dStr, log]) => {
-            if (dStr >= analysisStartDate && dStr <= analysisEndDate && log.hours && log.hours[`area-${a.id}`] > 0) {
-              m += log.hours[`area-${a.id}`];
-              d++;
-            }
-          });
-          totalAll += m;
-          return { area: a, mins: m, days: d };
-        });
-
-        bodyEl.innerHTML = rows.map(r => {
-          const pct = totalAll > 0 ? Math.round((r.mins / totalAll) * 100) : 0;
-          return `
-            <div class="flex flex-col gap-1">
-              <div class="flex items-center justify-between text-xs">
-                <span class="font-bold flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full" style="background-color:${r.area.color}"></span>${r.area.name}</span>
-                <span class="font-extrabold">${formatMinutesLabel(r.mins)} <span class="text-[10px] text-slate-400">(${r.days} gün • %${pct})</span></span>
-              </div>
-              <div class="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                <div class="h-full rounded-full" style="width:${pct}%; background-color:${r.area.color}"></div>
-              </div>
-            </div>
-          `;
-        }).join('');
-      } else if (STATE.analysisSlide === 1) {
-        bodyEl.className = 'my-auto py-2 flex flex-col gap-2';
-        bodyEl.style.maxHeight = '';
-        bodyEl.style.overflowY = '';
-
-        titleEl.innerText = '2. Ritim & Genel İlerleme';
-        let activeDays = 0, totalMins = 0;
-        Object.entries(STATE.dayLogs).forEach(([dStr, log]) => {
-          if (dStr >= analysisStartDate && dStr <= analysisEndDate) {
-            let s = 0;
-            Object.values(log.hours || {}).forEach(v => s += v);
-            if (s > 0) { activeDays++; totalMins += s; }
-          }
-        });
-        bodyEl.innerHTML = `
-          <div class="grid grid-cols-2 gap-3 my-auto text-center">
-            <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-              <div class="text-xl font-black text-indigo-600 dark:text-indigo-400">${formatMinutesLabel(totalMins)}</div>
-              <div class="text-xs font-bold text-slate-500">Dönem İçi Odak</div>
-            </div>
-            <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-              <div class="text-xl font-black text-emerald-600 dark:text-emerald-400">${activeDays} Gün</div>
-              <div class="text-xs font-bold text-slate-500">Aktif Çalışma</div>
-            </div>
-          </div>
-        `;
-      } else {
-        bodyEl.className = 'my-auto py-2 flex flex-col gap-2';
-        bodyEl.style.maxHeight = '';
-        bodyEl.style.overflowY = '';
-
-        if (STATE.analysisSlide === 2) {
-          titleEl.innerText = '3. Bu Hafta / Geçen Hafta Kıyası';
-          const currentEnd = dateKey(today);
-          const currentStartDate = new Date(today);
-          currentStartDate.setDate(today.getDate() - 6);
-          const previousEndDate = new Date(currentStartDate);
-          previousEndDate.setDate(currentStartDate.getDate() - 1);
-          const previousStartDate = new Date(previousEndDate);
-          previousStartDate.setDate(previousEndDate.getDate() - 6);
-          const currentMinutes = sumFocusMinutesBetween(dateKey(currentStartDate), currentEnd);
-          const previousMinutes = sumFocusMinutesBetween(dateKey(previousStartDate), dateKey(previousEndDate));
-          const difference = currentMinutes - previousMinutes;
-          const changePercent = previousMinutes > 0
-            ? Math.round((difference / previousMinutes) * 100)
-            : currentMinutes > 0 ? 100 : 0;
-          const changeLabel = `${changePercent > 0 ? '+' : ''}%${changePercent}`;
-          const differenceLabel = `${difference > 0 ? '+' : difference < 0 ? '-' : ''}${formatMinutesLabel(Math.abs(difference))}`;
-          const changeColor = difference > 0
-            ? 'text-emerald-600 dark:text-emerald-400'
-            : difference < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-500';
-          bodyEl.innerHTML = `
-            <div class="grid grid-cols-2 gap-3 my-auto text-center">
-              <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-                <div class="text-xl font-black text-indigo-600 dark:text-indigo-400">${formatMinutesLabel(currentMinutes)}</div>
-                <div class="text-xs font-bold text-slate-500">Son 7 Gün</div>
-              </div>
-              <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-                <div class="text-xl font-black ${changeColor}">${changeLabel}</div>
-                <div class="text-xs font-bold text-slate-500">${differenceLabel} • Geçen haftaya göre</div>
-              </div>
-            </div>
-          `;
-        } else if (STATE.analysisSlide === 3) {
-          titleEl.innerText = '4. Zirve Odak & En Verimli Gün';
-          const areaTotals = STATE.areas.map(area => ({
-            area,
-            minutes: Object.entries(STATE.dayLogs)
-              .filter(([dateStr]) => dateStr >= analysisStartDate && dateStr <= analysisEndDate)
-              .reduce((sum, [, log]) => sum + (Number(log.hours?.[`area-${area.id}`]) || 0), 0)
-          }));
-          const topArea = areaTotals.sort((a, b) => b.minutes - a.minutes)[0];
-          const weekdayTotals = [0, 0, 0, 0, 0, 0, 0];
-          Object.entries(STATE.dayLogs).forEach(([dateStr, log]) => {
-            if (dateStr >= analysisStartDate && dateStr <= analysisEndDate) {
-              const date = new Date(`${dateStr}T12:00:00`);
-              const mondayFirstIndex = (date.getDay() + 6) % 7;
-              weekdayTotals[mondayFirstIndex] += Object.values(log.hours || {})
-                .reduce((sum, minutes) => sum + (Number(minutes) || 0), 0);
-            }
-          });
-          const weekdays = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
-          const topWeekdayIndex = weekdayTotals.indexOf(Math.max(...weekdayTotals));
-          const topWeekday = weekdayTotals[topWeekdayIndex] > 0 ? weekdays[topWeekdayIndex] : '—';
-          bodyEl.innerHTML = `
-            <div class="grid grid-cols-2 gap-3 my-auto text-center">
-              <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-                <div class="text-base font-black text-indigo-600 dark:text-indigo-400 truncate">${topArea?.area.name || '—'}</div>
-                <div class="text-xs font-bold text-slate-500">${topArea?.minutes ? formatMinutesLabel(topArea.minutes) : '0dk'} • En çok odaklanılan</div>
-              </div>
-              <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-                <div class="text-xl font-black text-emerald-600 dark:text-emerald-400">${topWeekday}</div>
-                <div class="text-xs font-bold text-slate-500">En verimli gün</div>
-              </div>
-            </div>
-          `;
-        } else {
-          titleEl.innerText = '5. Bu Ayın Bilançosu';
-          const monthStart = dateKey(new Date(today.getFullYear(), today.getMonth(), 1));
-          const todayKey = dateKey(today);
-          const monthlyMinutes = sumFocusMinutesBetween(monthStart, todayKey);
-          const activeDays = Object.entries(STATE.dayLogs)
-            .filter(([dateStr, log]) => dateStr >= monthStart && dateStr <= todayKey
-              && Object.values(log.hours || {}).some(minutes => Number(minutes) > 0))
-            .length;
-          const averageMinutes = activeDays > 0 ? Math.round(monthlyMinutes / activeDays) : 0;
-          bodyEl.innerHTML = `
-            <div class="grid grid-cols-2 gap-3 my-auto text-center">
-              <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-                <div class="text-xl font-black text-indigo-600 dark:text-indigo-400">${formatMinutesLabel(monthlyMinutes)}</div>
-                <div class="text-xs font-bold text-slate-500">Ay başından bugüne</div>
-              </div>
-              <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-                <div class="text-xl font-black text-emerald-600 dark:text-emerald-400">${formatMinutesLabel(averageMinutes)}</div>
-                <div class="text-xs font-bold text-slate-500">Aktif gün başına ortalama</div>
-              </div>
-            </div>
-          `;
+    function areaMinutesInRange(start, end) {
+      const per = {};
+      const days = new Set();
+      let total = 0;
+      for (const [d, log] of Object.entries(STATE.dayLogs)) {
+        if (d < start || d > end) continue;
+        for (const [k, v] of Object.entries(log.hours || {})) {
+          if (!k.startsWith('area-')) continue;   // alt görev dakikaları alana zaten dahil
+          const mins = Number(v) || 0;
+          if (mins <= 0) continue;
+          const id = k.slice(5);
+          per[id] = (per[id] || 0) + mins;
+          total += mins;
+          days.add(d);
         }
       }
+      return { total, per, activeDays: days.size };
     }
 
-    // ==========================================
-    // 7. TAKVİM VE GÜN HÜCRELERİ
-    // ==========================================
+    function renderAnalysisCard() {
+      const tilesEl = document.getElementById('summaryTiles');
+      if (!tilesEl) return;
+      const now = new Date();
+      const today = TODAY_STR;
+      const monday = getMondayStartDate(now);
+      const weekStart = formatLocalDate(monday);
+      const lastMon = new Date(monday); lastMon.setDate(monday.getDate() - 7);
+      const lastSun = new Date(monday); lastSun.setDate(monday.getDate() - 1);
+      // geçen haftanın aynı gününe kadar (adil kıyas)
+      const lastSame = new Date(lastMon); lastSame.setDate(lastMon.getDate() + ((now.getDay() + 6) % 7));
+      const monthStart = formatLocalDate(new Date(now.getFullYear(), now.getMonth(), 1));
+
+      const t = areaMinutesInRange(today, today);
+      const w = areaMinutesInRange(weekStart, today);
+      const lw = areaMinutesInRange(formatLocalDate(lastMon), formatLocalDate(lastSame));
+      const mo = areaMinutesInRange(monthStart, today);
+
+      const rangeEl = document.getElementById('summaryRangeLabel');
+      if (rangeEl) rangeEl.innerText = now.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', weekday: 'long' });
+
+      const fmt = mins => mins > 0 ? formatMinutesLabel(mins) : '—';
+      const diff = w.total - lw.total;
+      const diffHtml = lw.total === 0 && w.total === 0 ? 'Henüz kayıt yok'
+        : diff === 0 ? 'Geçen haftayla aynı'
+        : `<span class="${diff > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500'} font-bold">${diff > 0 ? '▲' : '▼'} ${formatMinutesLabel(Math.abs(diff))}</span> geçen haftaya göre`;
+
+      const scope = w.total > 0 ? w : mo;
+      const scopeLabel = w.total > 0 ? 'Bu hafta en çok' : 'Bu ay en çok';
+      const ranked = Object.entries(scope.per)
+        .map(([id, mins]) => ({ area: STATE.areas.find(a => String(a.id) === id), mins }))
+        .filter(r => r.area)
+        .sort((x, y) => y.mins - x.mins)
+        .slice(0, 3);
+
+      const tile = (emoji, label, value, sub, tint) => `
+        <div class="stat-tile rounded-2xl p-3 flex flex-col justify-between ${tint}">
+          <div class="flex items-center gap-1.5 text-[11px] font-bold opacity-80">${emoji} ${label}</div>
+          <div class="text-xl md:text-2xl font-black leading-tight mt-1">${value}</div>
+          <div class="text-[10.5px] opacity-75 mt-0.5 leading-snug">${sub}</div>
+        </div>`;
+
+      const topHtml = ranked.length ? `
+        <div class="stat-tile rounded-2xl p-3 flex flex-col gap-1.5 bg-rose-50 text-rose-900 dark:bg-rose-500/10 dark:text-rose-100">
+          <div class="text-[11px] font-bold opacity-80">🏆 ${scopeLabel}</div>
+          ${ranked.map((r, i) => {
+            const pct = scope.total ? Math.round(r.mins / scope.total * 100) : 0;
+            return `<div class="flex flex-col gap-0.5">
+              <div class="flex items-center justify-between gap-1 ${i === 0 ? 'text-sm font-black' : 'text-[11px] font-bold opacity-80'}">
+                <span class="flex items-center gap-1.5 min-w-0"><span class="w-2 h-2 rounded-full shrink-0" style="background:${r.area.color}"></span><span class="truncate">${escapeHtml(r.area.name)}</span></span>
+                <span class="shrink-0">${formatMinutesLabel(r.mins)}</span>
+              </div>
+              <div class="h-1 rounded-full bg-black/5 dark:bg-white/10 overflow-hidden"><div class="h-full rounded-full" style="width:${pct}%;background:${r.area.color}"></div></div>
+            </div>`;
+          }).join('')}
+        </div>` : tile('🏆', 'En çok', '—', 'Henüz kayıt yok', 'bg-rose-50 text-rose-900 dark:bg-rose-500/10 dark:text-rose-100');
+
+      tilesEl.innerHTML =
+        tile('☀️', 'Bugün', fmt(t.total), t.total > 0 ? `${Object.keys(t.per).length} alanda çalıştın` : 'Henüz kayıt yok', 'bg-indigo-50 text-indigo-900 dark:bg-indigo-500/10 dark:text-indigo-100') +
+        tile('📅', 'Bu hafta', fmt(w.total), diffHtml, 'bg-emerald-50 text-emerald-900 dark:bg-emerald-500/10 dark:text-emerald-100') +
+        tile('🗓️', 'Bu ay', fmt(mo.total), mo.activeDays ? `${mo.activeDays} aktif gün · günde ort. ${formatMinutesLabel(Math.round(mo.total / mo.activeDays))}` : 'Henüz kayıt yok', 'bg-amber-50 text-amber-900 dark:bg-amber-500/10 dark:text-amber-100') +
+        topHtml;
+    }
     function getMondayStartDate(referenceDate) {
       const startDate = new Date(referenceDate);
       const dayOfWeek = startDate.getDay();
