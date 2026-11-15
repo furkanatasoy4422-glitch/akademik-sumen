@@ -879,6 +879,19 @@
       return out;
     }
 
+    function mergeAreaNotes(a, b) {
+      const out = {};
+      new Set([...Object.keys(a || {}), ...Object.keys(b || {})]).forEach(k => {
+        const x = ((a || {})[k] || '').trim(), y = ((b || {})[k] || '').trim();
+        if (!x || !y || x === y) out[k] = x || y;
+        else if (x.includes(y)) out[k] = x;
+        else if (y.includes(x)) out[k] = y;
+        else out[k] = `${x}\n— ${y}`;
+        if (!out[k]) delete out[k];
+      });
+      return out;
+    }
+
     // İki cihazın verisini kayıpsız birleştirir: hiçbir dakika, not veya alan kaybolmaz.
     // Ayarlar (tema, görünüm vb.) bu cihazdaki haliyle kalır.
     function mergeStates(local, cloud) {
@@ -913,8 +926,10 @@
         merged.dayLogs[d] = Object.assign({}, c, l, {
           hours,
           journals: unionList(l.journals, c.journals, j => typeof j === 'string' ? j : JSON.stringify(j)),
-          completed: unionList(l.completed, c.completed, x => JSON.stringify(x))
+          completed: unionList(l.completed, c.completed, x => JSON.stringify(x)),
+          areaNotes: mergeAreaNotes(l.areaNotes, c.areaNotes)
         });
+        if (!Object.keys(merged.dayLogs[d].areaNotes).length) delete merged.dayLogs[d].areaNotes;
       });
 
       const ln = (local.freeScratchpadNote || '').trim(), cn = (cloud.freeScratchpadNote || '').trim();
@@ -1884,6 +1899,13 @@
           tags.forEach(t => { counts[t] = (counts[t] || 0) + 1; });
           all.push({ dateStr: dStr, text, tags });
         });
+        Object.entries(log.areaNotes || {}).forEach(([areaId, text]) => {
+          if (!text) return;
+          const area = STATE.areas.find(a => String(a.id) === String(areaId));
+          const tags = [...new Set(extractTags(text))];
+          tags.forEach(t => { counts[t] = (counts[t] || 0) + 1; });
+          all.push({ dateStr: dStr, text: String(text), tags, area, areaName: area ? area.name : 'Arşivlenmiş alan' });
+        });
       });
       if (countEl) countEl.innerText = all.length;
 
@@ -1897,7 +1919,7 @@
       ].join('');
 
       const q = trLower(notesSearchQuery.trim());
-      const matched = all.filter(n => (!active || n.tags.includes(active)) && (!q || trLower(n.text).includes(q)));
+      const matched = all.filter(n => (!active || n.tags.includes(active)) && (!q || trLower(n.text).includes(q) || trLower(n.areaName).includes(q)));
 
       if (!matched.length) {
         feedEl.innerHTML = `<div class="text-[11px] text-slate-400 italic py-2 text-center">${all.length ? 'Eşleşen not yok.' : 'Henüz not yok. Takvimde bir güne tıklayıp not ekleyebilirsin.'}</div>`;
@@ -1913,7 +1935,10 @@
           ? `<div class="text-[10px] font-extrabold uppercase tracking-wide text-slate-400 mt-1 first:mt-0 px-0.5">${formatNoteDate(n.dateStr)}</div>`
           : '';
         lastDate = n.dateStr;
-        return `${dateHead}<div onclick="openDayModal('${n.dateStr}')" class="cursor-pointer px-2.5 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200/60 dark:border-slate-700/60 text-[11.5px] leading-snug text-slate-700 dark:text-slate-200 transition">${html}</div>`;
+        const areaChip = n.areaName
+          ? `<span class="inline-flex items-center gap-1 mr-1 px-1.5 rounded-full text-[10px] font-bold text-white align-baseline" style="background-color:${n.area ? n.area.color : '#64748b'}">${escapeHtml(n.areaName)}</span>`
+          : '';
+        return `${dateHead}<div onclick="openDayModal('${n.dateStr}')" class="cursor-pointer px-2.5 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200/60 dark:border-slate-700/60 text-[11.5px] leading-snug text-slate-700 dark:text-slate-200 transition" ${n.area ? `style="border-left:3px solid ${n.area.color}"` : ''}>${areaChip}${html}</div>`;
       }).join('') + (matched.length > notesShowLimit
         ? `<button onclick="showMoreNotes()" class="mt-1 py-1.5 rounded-xl text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40">Daha fazla göster (${matched.length - notesShowLimit})</button>`
         : '');
@@ -2138,7 +2163,7 @@
       const previousDate = new Date(`${dateStr}T12:00:00`);
       previousDate.setDate(previousDate.getDate() - 1);
       const previousLog = STATE.dayLogs[formatLocalDate(previousDate)];
-      const hasJournal = log.journals && log.journals.length > 0;
+      const hasJournal = (log.journals && log.journals.length > 0) || (log.areaNotes && Object.keys(log.areaNotes).length > 0);
       const hasCompleted = log.completed && log.completed.length > 0;
 
       let dotsIndicatorHtml = `<div class="flex items-center gap-1">`;
@@ -2151,6 +2176,7 @@
 
       tracks.forEach(tr => {
         const mins = log.hours ? log.hours[tr.key] : 0;
+        const trNote = (!tr.isSub && log.areaNotes && tr.key.startsWith('area-')) ? (log.areaNotes[tr.key.slice(5)] || '') : '';
         if (mins && mins > 0) {
           const streak = calculateConsecutiveStreak(tr.key, dateStr);
           const bg = getStreakColorCss(tr.color, streak, tr.isSub);
@@ -2158,8 +2184,8 @@
           stripsHtml += `
             <div class="flex w-full ${stripH}">
               ${continuesFromPreviousDay ? '<span class="-ml-1.5 w-1.5 h-full shrink-0 rounded-l-sm bg-slate-400 dark:bg-slate-300 opacity-90 border-r border-black/20"></span>' : ''}
-              <div class="ribbon-strip ${continuesFromPreviousDay ? 'flex-1 min-w-0' : 'w-full'} h-full px-2 flex items-center justify-between font-bold text-white leading-none" style="background-color:${bg}" title="${tr.label} • ${formatMinutesLabel(mins)}">
-                <span class="truncate">${tr.isSub ? '↳ ' + tr.label : tr.label}</span>
+              <div class="ribbon-strip ${continuesFromPreviousDay ? 'flex-1 min-w-0' : 'w-full'} h-full px-2 flex items-center justify-between font-bold text-white leading-none" style="background-color:${bg}" title="${escapeHtml(tr.label)} • ${formatMinutesLabel(mins)}${trNote ? '\n📝 ' + escapeHtml(trNote) : ''}">
+                <span class="truncate">${tr.isSub ? '↳ ' + tr.label : tr.label}${trNote ? ' <span class="opacity-90">📝</span>' : ''}</span>
                 <span class="text-[9px] opacity-90 ml-1">${formatMinutesLabel(mins, true)}</span>
               </div>
             </div>
@@ -2292,16 +2318,24 @@
         tierAreas.forEach(a => {
           const curMins = log.hours[`area-${a.id}`] || 0;
           totalM += curMins;
+          const areaNote = (log.areaNotes && log.areaNotes[a.id]) || '';
+          const showNote = curMins > 0 || areaNote;
           cont.innerHTML += `
-            <div class="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 mb-1.5">
-              <span class="text-xs font-bold flex items-center gap-1.5 text-slate-800 dark:text-slate-100">
-                <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color:${a.color}"></span>
-                ${a.name}
-              </span>
-              <div class="flex items-center gap-1.5">
-                <input type="number" step="5" min="0" max="1440" value="${curMins}" onchange="setModalTrackMinutes('area-${a.id}', this.value)" class="w-16 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-xs font-bold text-center text-slate-800 dark:text-slate-100 outline-none">
-                <span class="text-[11px] text-slate-400 font-bold">dk</span>
+            <div class="p-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 mb-1.5" style="border-left:3px solid ${a.color}">
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-xs font-bold flex items-center gap-1.5 text-slate-800 dark:text-slate-100 min-w-0">
+                  <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color:${a.color}"></span>
+                  <span class="truncate">${escapeHtml(a.name)}</span>
+                </span>
+                <div class="flex items-center gap-1.5 shrink-0">
+                  <button type="button" onclick="revealAreaNote('${a.id}')" title="Bu güne ${escapeHtml(a.name)} notu ekle" class="${showNote ? 'hidden' : ''} text-[11px] px-1.5 py-1 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-white dark:hover:bg-slate-800">📝</button>
+                  <input type="number" step="5" min="0" max="1440" value="${curMins}" onchange="setModalTrackMinutes('area-${a.id}', this.value)" class="w-16 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-xs font-bold text-center text-slate-800 dark:text-slate-100 outline-none">
+                  <span class="text-[11px] text-slate-400 font-bold">dk</span>
+                </div>
               </div>
+              <textarea id="areaNote-${a.id}" rows="1" placeholder="${escapeHtml(a.name)} için bugünün notu (isteğe bağlı)…"
+                oninput="autoGrow(this); queueAreaNoteSave('${a.id}', this.value)" onblur="saveAreaDayNote('${a.id}', this.value)"
+                class="${showNote ? '' : 'hidden'} mt-1.5 w-full min-h-[32px] resize-none bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs leading-snug text-slate-700 dark:text-slate-200 outline-none focus:border-indigo-500">${escapeHtml(areaNote)}</textarea>
             </div>
           `;
         });
@@ -2313,6 +2347,41 @@
       const modal = document.getElementById('dayModal');
       modal.classList.remove('hidden');
       modal.classList.add('flex');
+      cont.querySelectorAll('textarea[id^="areaNote-"]').forEach(autoGrow);
+      lucide.createIcons();
+    }
+
+    function autoGrow(el) {
+      if (!el) return;
+      el.style.height = 'auto';
+      el.style.height = Math.min(el.scrollHeight + 2, 160) + 'px';
+    }
+    function revealAreaNote(areaId) {
+      const ta = document.getElementById(`areaNote-${areaId}`);
+      if (!ta) return;
+      ta.classList.remove('hidden');
+      autoGrow(ta);
+      ta.focus();
+    }
+    const areaNoteTimers = {};
+    function queueAreaNoteSave(areaId, value) {
+      clearTimeout(areaNoteTimers[areaId]);
+      areaNoteTimers[areaId] = setTimeout(() => saveAreaDayNote(areaId, value), 700);
+    }
+    // O güne ve o alana bağlı not: dayLogs[tarih].areaNotes[alanId]
+    function saveAreaDayNote(areaId, value) {
+      clearTimeout(areaNoteTimers[areaId]);
+      const dateStr = STATE.activeDayModalDate;
+      if (!dateStr) return;
+      const log = ensureDayLog(dateStr);
+      if (!log.areaNotes || typeof log.areaNotes !== 'object') log.areaNotes = {};
+      const text = String(value || '').trim();
+      if ((log.areaNotes[areaId] || '') === text) return;
+      if (text) log.areaNotes[areaId] = text;
+      else delete log.areaNotes[areaId];
+      saveLocal();
+      renderCalendar();
+      renderLeftTags();
       lucide.createIcons();
     }
 
@@ -2369,6 +2438,9 @@
       renderAll();
     }
     function closeDayModal() {
+      document.querySelectorAll('#dayModalTracksContainer textarea[id^="areaNote-"]').forEach(ta => {
+        if (!ta.classList.contains('hidden')) saveAreaDayNote(ta.id.replace('areaNote-', ''), ta.value);
+      });
       document.getElementById('dayModal').classList.add('hidden');
       document.getElementById('dayModal').classList.remove('flex');
     }
